@@ -1,0 +1,22 @@
+{
+  "name": "llm-gateway",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Multi-tenant LLM proxy with semantic caching and cost attribution",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "test": "turbo test",
+    "lint": "turbo lint",
+    "db:migrate": "pnpm --filter @llm-gateway/gateway db:migrate",
+    "db:studio": "pnpm --filter @llm-gateway/gateway db:studio"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.3"
+  },
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  }
+}
