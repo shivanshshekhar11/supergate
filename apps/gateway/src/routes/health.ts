@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify'
 import { HealthResponseSchema } from '@llm-gateway/schemas'
 import { testConnection } from '../db/client'
 import { testRedisConnection } from '../redis/client'
+import { getAllProviders } from '../providers/router'
 
 const startTime = Date.now()
 
@@ -32,6 +33,21 @@ export async function healthRoutes(app: FastifyInstance) {
       status = 'unhealthy'
     }
 
+    // Get circuit breaker states from all active providers
+    const providers = getAllProviders()
+    const providerStates = providers.map((provider) => {
+      const state = provider.getCircuitBreakerState()
+      return {
+        name: provider.constructor.name.replace('Provider', '').toLowerCase(),
+        circuitBreaker: {
+          state: state.state,
+          failures: state.failures,
+          lastFailure: state.lastFailure,
+          nextRetry: state.nextRetry,
+        },
+      }
+    })
+
     const response = {
       status,
       timestamp: new Date().toISOString(),
@@ -44,7 +60,7 @@ export async function healthRoutes(app: FastifyInstance) {
         connected: redisConnected,
         latencyMs: redisConnected ? redisLatency : undefined,
       },
-      providers: [], // Will be populated in Week 1 with circuit breaker states
+      providers: providerStates,
     }
 
     // Set appropriate status code

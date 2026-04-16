@@ -22,7 +22,7 @@ const jsonb = customType<{ data: Record<string, any>; driverData: string }>({
 export const tenants = pgTable('tenants', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
-  tier: text('tier').notNull().default('free'), // free | pro | enterprise
+  tier: text('tier').notNull().default('free'), // free | pro | enterprise | enterprise-independent
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 

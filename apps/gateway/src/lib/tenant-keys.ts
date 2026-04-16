@@ -1,7 +1,12 @@
 import { db } from '../db/client'
-import { tenantLLMKeys } from '../db/schema'
+import { tenantLLMKeys, tenants } from '../db/schema'
 import { eq, and } from 'drizzle-orm'
 import { encryptApiKey, decryptApiKey, maskApiKey, validateApiKeyFormat } from './encryption'
+
+/**
+ * Tenant tier type
+ */
+export type TenantTier = 'free' | 'pro' | 'enterprise' | 'enterprise-independent'
 
 /**
  * In-memory cache for decrypted tenant keys
@@ -12,12 +17,54 @@ const keyCache = new Map<string, { key: string; expiresAt: number }>()
 const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
 
 /**
+ * In-memory cache for tenant tiers
+ * Reduces database queries for tier checks
+ * Tiers expire after 10 minutes
+ */
+const tierCache = new Map<string, { tier: TenantTier; expiresAt: number }>()
+const TIER_CACHE_TTL_MS = 10 * 60 * 1000 // 10 minutes
+
+/**
+ * Get tenant's tier
+ * Used to determine if gateway key fallback is allowed
+ */
+export async function getTenantTier(tenantId: string): Promise<TenantTier> {
+  // Check cache first
+  const cached = tierCache.get(tenantId)
+  
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.tier
+  }
+  
+  // Query database
+  const result = await db
+    .select({ tier: tenants.tier })
+    .from(tenants)
+    .where(eq(tenants.id, tenantId))
+    .limit(1)
+  
+  if (result.length === 0) {
+    throw new Error(`Tenant not found: ${tenantId}`)
+  }
+  
+  const tier = result[0].tier as TenantTier
+  
+  // Cache for 10 minutes
+  tierCache.set(tenantId, {
+    tier,
+    expiresAt: Date.now() + TIER_CACHE_TTL_MS,
+  })
+  
+  return tier
+}
+
+/**
  * Get tenant's LLM API key for a specific provider
  * Returns null if tenant hasn't provided their own key (will fall back to gateway key)
  */
 export async function getTenantLLMKey(
   tenantId: string,
-  provider: 'openai' | 'anthropic'
+  provider: 'openai' | 'anthropic' | 'google' | 'cohere' | 'mistral'
 ): Promise<string | null> {
   // Check cache first
   const cacheKey = `${tenantId}:${provider}`
@@ -68,7 +115,7 @@ export async function getTenantLLMKey(
  */
 export async function storeTenantLLMKey(
   tenantId: string,
-  provider: 'openai' | 'anthropic',
+  provider: 'openai' | 'anthropic' | 'google' | 'cohere' | 'mistral',
   apiKey: string
 ): Promise<{ id: string; apiKeyMasked: string; createdAt: Date }> {
   // Validate key format
@@ -172,4 +219,11 @@ export async function deleteTenantLLMKey(tenantId: string, keyId: string): Promi
  */
 export function clearKeyCache(): void {
   keyCache.clear()
+}
+
+/**
+ * Clear the in-memory tier cache (useful for testing)
+ */
+export function clearTierCache(): void {
+  tierCache.clear()
 }

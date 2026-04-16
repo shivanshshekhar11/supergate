@@ -109,7 +109,10 @@ export function maskApiKey(apiKey: string): string {
 /**
  * Validate API key format before encryption
  */
-export function validateApiKeyFormat(apiKey: string, provider: 'openai' | 'anthropic'): boolean {
+export function validateApiKeyFormat(
+  apiKey: string,
+  provider: 'openai' | 'anthropic' | 'google' | 'cohere' | 'mistral'
+): boolean {
   if (provider === 'openai') {
     // OpenAI keys start with 'sk-' and are typically 48-51 chars
     return apiKey.startsWith('sk-') && apiKey.length >= 20
@@ -118,6 +121,21 @@ export function validateApiKeyFormat(apiKey: string, provider: 'openai' | 'anthr
   if (provider === 'anthropic') {
     // Anthropic keys start with 'sk-ant-' and are typically 100+ chars
     return apiKey.startsWith('sk-ant-') && apiKey.length >= 20
+  }
+  
+  if (provider === 'google') {
+    // Google API keys start with 'AIza' and are 39 chars
+    return apiKey.startsWith('AIza') && apiKey.length >= 20
+  }
+  
+  if (provider === 'cohere') {
+    // Cohere keys are typically 40 chars, no specific prefix
+    return apiKey.length >= 20
+  }
+  
+  if (provider === 'mistral') {
+    // Mistral keys are typically 32 chars, no specific prefix
+    return apiKey.length >= 20
   }
   
   return false

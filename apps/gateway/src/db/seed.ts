@@ -5,66 +5,119 @@ import bcrypt from 'bcryptjs'
 import { eq } from 'drizzle-orm'
 
 /**
- * Seed script: Creates a test tenant and API key
+ * Seed script: Creates test tenants and API keys
  * Run with: pnpm --filter @llm-gateway/gateway db:seed
  */
 async function seed() {
   console.log('🌱 Seeding database...\n')
 
   try {
-    // Check if test tenant already exists
-    const existingTenant = await db
+    // 1. Create Pro Tier Tenant (uses gateway keys as fallback)
+    const existingProTenant = await db
       .select()
       .from(tenants)
-      .where(eq(tenants.name, 'Test Tenant'))
+      .where(eq(tenants.name, 'Test Tenant (Pro)'))
       .limit(1)
 
-    let tenantId: string
+    let proTenantId: string
 
-    if (existingTenant.length > 0) {
-      tenantId = existingTenant[0].id
-      console.log(`✓ Test tenant already exists (ID: ${tenantId})`)
+    if (existingProTenant.length > 0) {
+      proTenantId = existingProTenant[0].id
+      console.log(`✓ Pro tenant already exists (ID: ${proTenantId})`)
     } else {
-      // Create test tenant
       const [tenant] = await db
         .insert(tenants)
         .values({
-          name: 'Test Tenant',
+          name: 'Test Tenant (Pro)',
           tier: 'pro',
         })
         .returning()
 
-      tenantId = tenant.id
-      console.log(`✓ Created test tenant (ID: ${tenantId})`)
+      proTenantId = tenant.id
+      console.log(`✓ Created Pro tenant (ID: ${proTenantId})`)
     }
 
-    // Generate API key
-    const rawKey = `gw_${randomBytes(24).toString('hex')}` // gw_ + 48 hex chars
-    const keyPrefix = rawKey.substring(0, 8) // "gw_abc12"
-    const keyHash = await bcrypt.hash(rawKey, 10)
+    // Generate API key for Pro tenant
+    const proRawKey = `gw_${randomBytes(24).toString('hex')}`
+    const proKeyPrefix = proRawKey.substring(0, 8)
+    const proKeyHash = await bcrypt.hash(proRawKey, 10)
 
-    // Insert API key
-    const [apiKey] = await db
+    const [proApiKey] = await db
       .insert(apiKeys)
       .values({
-        tenantId,
-        keyHash,
-        keyPrefix,
+        tenantId: proTenantId,
+        keyHash: proKeyHash,
+        keyPrefix: proKeyPrefix,
         role: 'admin',
-        name: 'Test Admin Key',
+        name: 'Pro Admin Key',
         revoked: false,
       })
       .returning()
 
-    console.log(`✓ Created API key (ID: ${apiKey.id})`)
-    console.log(`\n${'='.repeat(60)}`)
-    console.log('🔑 API KEY (save this - it will not be shown again):')
-    console.log(`${'='.repeat(60)}`)
-    console.log(`\n${rawKey}\n`)
-    console.log(`${'='.repeat(60)}`)
-    console.log('\nUse this key in the Authorization header:')
-    console.log(`Authorization: Bearer ${rawKey}`)
-    console.log(`${'='.repeat(60)}\n`)
+    console.log(`✓ Created Pro API key (ID: ${proApiKey.id})`)
+
+    // 2. Create Enterprise-Independent Tier Tenant (BYOK only, no fallback)
+    const existingIndependentTenant = await db
+      .select()
+      .from(tenants)
+      .where(eq(tenants.name, 'Test Tenant (Enterprise-Independent)'))
+      .limit(1)
+
+    let independentTenantId: string
+
+    if (existingIndependentTenant.length > 0) {
+      independentTenantId = existingIndependentTenant[0].id
+      console.log(`✓ Enterprise-Independent tenant already exists (ID: ${independentTenantId})`)
+    } else {
+      const [tenant] = await db
+        .insert(tenants)
+        .values({
+          name: 'Test Tenant (Enterprise-Independent)',
+          tier: 'enterprise-independent',
+        })
+        .returning()
+
+      independentTenantId = tenant.id
+      console.log(`✓ Created Enterprise-Independent tenant (ID: ${independentTenantId})`)
+    }
+
+    // Generate API key for Enterprise-Independent tenant
+    const independentRawKey = `gw_${randomBytes(24).toString('hex')}`
+    const independentKeyPrefix = independentRawKey.substring(0, 8)
+    const independentKeyHash = await bcrypt.hash(independentRawKey, 10)
+
+    const [independentApiKey] = await db
+      .insert(apiKeys)
+      .values({
+        tenantId: independentTenantId,
+        keyHash: independentKeyHash,
+        keyPrefix: independentKeyPrefix,
+        role: 'admin',
+        name: 'Enterprise-Independent Admin Key',
+        revoked: false,
+      })
+      .returning()
+
+    console.log(`✓ Created Enterprise-Independent API key (ID: ${independentApiKey.id})`)
+
+    // Print results
+    console.log(`\n${'='.repeat(70)}`)
+    console.log('🔑 API KEYS (save these - they will not be shown again):')
+    console.log(`${'='.repeat(70)}`)
+    
+    console.log('\n1. PRO TIER (can use gateway keys as fallback):')
+    console.log(`   Tenant ID: ${proTenantId}`)
+    console.log(`   API Key: ${proRawKey}`)
+    console.log(`   Usage: Authorization: Bearer ${proRawKey}`)
+    
+    console.log('\n2. ENTERPRISE-INDEPENDENT TIER (BYOK only, no fallback):')
+    console.log(`   Tenant ID: ${independentTenantId}`)
+    console.log(`   API Key: ${independentRawKey}`)
+    console.log(`   Usage: Authorization: Bearer ${independentRawKey}`)
+    console.log(`   ⚠️  This tenant MUST configure BYOK keys for each provider`)
+    console.log(`   ⚠️  Requests will fail if provider key is not configured`)
+    
+    console.log(`\n${'='.repeat(70)}\n`)
 
     console.log('✅ Seeding complete!\n')
   } catch (error) {

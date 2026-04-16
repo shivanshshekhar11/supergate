@@ -20,6 +20,9 @@ export const env = createEnv({
     // LLM Provider API Keys
     OPENAI_API_KEY: z.string().min(1),
     ANTHROPIC_API_KEY: z.string().min(1),
+    GOOGLE_API_KEY: z.string().optional(), // Optional - can use BYOK only
+    COHERE_API_KEY: z.string().optional(), // Optional - can use BYOK only
+    MISTRAL_API_KEY: z.string().optional(), // Optional - can use BYOK only
 
     // Embedding Configuration
     EMBEDDING_MODEL: z.string().default('text-embedding-3-small'),
