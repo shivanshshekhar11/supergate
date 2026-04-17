@@ -1,9 +1,13 @@
 import type { Metadata } from 'next'
+import { Inter } from 'next/font/google'
 import './globals.css'
+import { AuthProvider } from '@/contexts/auth-context'
+
+const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'LLM Gateway Dashboard',
-  description: 'Multi-tenant LLM proxy with semantic caching and cost attribution',
+  title: 'Supergate Dashboard',
+  description: 'Architectural intelligence for the enterprise',
 }
 
 export default function RootLayout({
@@ -13,8 +17,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="antialiased bg-gray-50">
-        {children}
+      <body className={inter.className}>
+        <AuthProvider>
+          <div className="min-h-screen bg-[#131313]">
+            {children}
+          </div>
+        </AuthProvider>
       </body>
     </html>
   )

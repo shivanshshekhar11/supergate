@@ -9,6 +9,7 @@ import { chatRoutes } from './routes/chat'
 import { keyRoutes } from './routes/keys'
 import { tenantKeyRoutes } from './routes/tenant-keys'
 import { usageRoutes } from './routes/usage'
+import { cacheRoutes } from './routes/cache'
 import { registerAuthRoutes } from './routes/auth'
 import { authMiddleware } from './middleware/auth'
 import { rateLimitMiddleware } from './middleware/rate-limit'
@@ -115,6 +116,7 @@ async function bootstrap() {
         { name: 'Auth', description: 'User authentication and registration' },
         { name: 'Chat', description: 'LLM chat completions' },
         { name: 'Usage', description: 'Usage tracking and cost attribution' },
+        { name: 'Cache', description: 'Semantic cache analytics and performance' },
         { name: 'Keys', description: 'API key management' },
         { name: 'Tenant Keys', description: 'Tenant BYOK key management' },
         { name: 'Health', description: 'Service health checks' },
@@ -207,6 +209,7 @@ async function bootstrap() {
   await app.register(keyRoutes)
   await app.register(tenantKeyRoutes)
   await app.register(usageRoutes)
+  await app.register(cacheRoutes)
 
   // Graceful shutdown
   const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM']
