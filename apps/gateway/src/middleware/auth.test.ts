@@ -252,8 +252,8 @@ describe('RBAC Decorator', () => {
 
     // First authenticate
     await authMiddleware(request, reply)
-    reply.code.mockClear()
-    reply.send.mockClear()
+    ;(reply.code as any).mockClear()
+    ;(reply.send as any).mockClear()
 
     // Then check role
     const roleCheck = requireRole('admin')

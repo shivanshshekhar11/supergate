@@ -7,8 +7,11 @@ import { healthRoutes } from './routes/health'
 import { chatRoutes } from './routes/chat'
 import { keyRoutes } from './routes/keys'
 import { tenantKeyRoutes } from './routes/tenant-keys'
+import { usageRoutes } from './routes/usage'
 import { authMiddleware } from './middleware/auth'
 import { rateLimitMiddleware } from './middleware/rate-limit'
+import { piiMaskMiddleware } from './middleware/pii-mask'
+import { usageLoggerMiddleware } from './middleware/usage-logger'
 import { closeConnection } from './db/client'
 import { closeRedisConnection } from './redis/client'
 
@@ -64,6 +67,9 @@ async function bootstrap() {
       },
       tags: [
         { name: 'Chat', description: 'LLM chat completions' },
+        { name: 'Usage', description: 'Usage tracking and cost attribution' },
+        { name: 'Keys', description: 'API key management' },
+        { name: 'Tenant Keys', description: 'Tenant BYOK key management' },
         { name: 'Health', description: 'Service health checks' },
       ],
     },
@@ -80,7 +86,7 @@ async function bootstrap() {
   })
 
   // Register global middleware
-  // Order matters: auth → rate-limit → routes
+  // Order matters: auth → rate-limit → pii-mask → routes → usage-logger
   
   // Health endpoint doesn't need auth
   await app.register(healthRoutes)
@@ -104,12 +110,27 @@ async function bootstrap() {
     
     // Apply rate limiting middleware
     await rateLimitMiddleware(request, reply)
+    
+    // Apply PII masking middleware (for chat requests)
+    await piiMaskMiddleware(request, reply)
+  })
+  
+  // Usage logger runs after response (fire-and-forget)
+  app.addHook('onResponse', async (request, reply) => {
+    // Skip for health and docs endpoints
+    if (request.url.startsWith('/health') || request.url.startsWith('/docs')) {
+      return
+    }
+    
+    // Log usage data
+    await usageLoggerMiddleware(request, reply)
   })
   
   // Register protected routes
   await app.register(chatRoutes)
   await app.register(keyRoutes)
   await app.register(tenantKeyRoutes)
+  await app.register(usageRoutes)
 
   // Graceful shutdown
   const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM']

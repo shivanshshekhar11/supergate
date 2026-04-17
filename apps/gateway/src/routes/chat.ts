@@ -17,6 +17,10 @@ export async function chatRoutes(app: FastifyInstance) {
     const startTime = Date.now()
     const requestId = randomUUID()
 
+    // Store for usage logger
+    request.startTime = startTime
+    request.requestId = requestId
+
     // Ensure tenant context exists (should be set by auth middleware)
     if (!request.tenantContext) {
       return reply.code(401).send({
@@ -44,16 +48,37 @@ export async function chatRoutes(app: FastifyInstance) {
         reply.raw.setHeader('Cache-Control', 'no-cache')
         reply.raw.setHeader('Connection', 'keep-alive')
         reply.raw.setHeader('X-Request-ID', requestId)
+        reply.raw.setHeader('X-Cache', 'MISS') // Streaming never cached
+
+        // Track tokens for streaming (approximate)
+        let totalInputTokens = 0
+        let totalOutputTokens = 0
 
         // Stream chunks
         try {
           for await (const chunk of provider.stream(body)) {
             reply.raw.write(`data: ${JSON.stringify(chunk)}\n\n`)
+
+            // Accumulate token counts from chunks (if available)
+            // Note: Not all streaming responses include usage data
+            if ('usage' in chunk && chunk.usage) {
+              totalInputTokens = (chunk.usage as any).prompt_tokens || 0
+              totalOutputTokens = (chunk.usage as any).completion_tokens || 0
+            }
           }
 
           // Send [DONE] message
           reply.raw.write('data: [DONE]\n\n')
           reply.raw.end()
+
+          // Store LLM result for usage logger
+          request.llmResult = {
+            provider: provider.id,
+            model: body.model,
+            inputTokens: totalInputTokens,
+            outputTokens: totalOutputTokens,
+            cached: false,
+          }
         } catch (streamError) {
           console.error('[Chat] Streaming error:', streamError)
           reply.raw.write(
@@ -68,10 +93,20 @@ export async function chatRoutes(app: FastifyInstance) {
       // Handle non-streaming
       const response = await provider.chat(body)
 
+      // Store LLM result for usage logger
+      request.llmResult = {
+        provider: provider.id,
+        model: body.model,
+        inputTokens: response.usage.prompt_tokens,
+        outputTokens: response.usage.completion_tokens,
+        cached: false, // Will be set to true by semantic cache middleware
+      }
+
       // Add custom headers
       const latencyMs = Date.now() - startTime
       reply.header('X-Request-ID', requestId)
       reply.header('X-Latency-Ms', latencyMs.toString())
+      reply.header('X-Cache', 'MISS') // Will be overridden by cache middleware if HIT
 
       return response
     } catch (error: any) {
