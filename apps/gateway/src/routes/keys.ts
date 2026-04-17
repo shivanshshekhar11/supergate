@@ -1,4 +1,15 @@
 import { FastifyInstance } from 'fastify'
+import { z } from 'zod'
+import {
+  CreateKeyRequestSchema,
+  CreateKeyResponseSchema,
+  KeyMetadataSchema,
+  ErrorResponseSchema,
+  type CreateKeyRequest,
+  type CreateKeyResponse,
+  type KeyMetadata,
+  type ErrorResponse,
+} from '@llm-gateway/schemas'
 import { db } from '../db/client'
 import { apiKeys } from '../db/schema'
 import { eq, and } from 'drizzle-orm'
@@ -22,24 +33,39 @@ export async function keyRoutes(app: FastifyInstance) {
    * Generates a new gateway API key for the authenticated tenant
    * Returns the raw key ONCE - it cannot be retrieved again
    */
-  app.post('/v1/keys', {
-    preHandler: requireRole('admin'),
-  }, async (request, reply) => {
-    if (!request.tenantContext) {
-      return reply.code(401).send({
-        error: {
-          code: 'not_authenticated',
-          message: 'Authentication required',
-          requestId: request.id,
+  app.post<{ Body: CreateKeyRequest; Reply: CreateKeyResponse | ErrorResponse }>(
+    '/v1/keys',
+    {
+      preHandler: requireRole('admin'),
+      schema: {
+        body: CreateKeyRequestSchema,
+        response: {
+          201: CreateKeyResponseSchema,
+          401: ErrorResponseSchema,
+          500: ErrorResponseSchema,
         },
-      })
-    }
+        tags: ['Keys'],
+        summary: 'Create API key',
+        description: 'Creates a new gateway API key for the authenticated tenant. Returns the raw key ONCE - it cannot be retrieved again.',
+        security: [{ BearerAuth: [] }],
+      },
+    },
+    async (request, reply) => {
+      if (!request.tenantContext) {
+        return reply.code(401).send({
+          error: {
+            code: 'not_authenticated',
+            message: 'Authentication required',
+            requestId: request.id,
+          },
+        })
+      }
 
-    const { tenantId } = request.tenantContext
-    const body = request.body as any
+      const { tenantId } = request.tenantContext
+      const body = request.body
 
-    try {
-      // Generate raw API key: gw_ + 48 hex characters
+      try {
+        // Generate raw API key: gw_ + 48 hex characters
       const rawKey = `gw_${randomBytes(24).toString('hex')}`
       const keyPrefix = rawKey.substring(0, 9) // "gw_abc123"
       
@@ -71,15 +97,16 @@ export async function keyRoutes(app: FastifyInstance) {
       )
 
       // Return raw key ONCE
-      return reply.code(201).send({
+      const response: CreateKeyResponse = {
         id: newKey.id,
         key: rawKey, // ⚠️ Only shown once!
         keyPrefix: newKey.keyPrefix,
         role: newKey.role,
         name: newKey.name,
-        createdAt: newKey.createdAt,
-        warning: 'Save this key securely. It cannot be retrieved again.',
-      })
+        createdAt: newKey.createdAt.toISOString(),
+      }
+
+      return reply.code(201).send(response)
     } catch (error) {
       console.error('[Keys] Error creating API key:', error)
       return reply.code(500).send({
@@ -99,21 +126,35 @@ export async function keyRoutes(app: FastifyInstance) {
    * Returns all API keys for the authenticated tenant
    * Keys are masked - only prefix and metadata shown
    */
-  app.get('/v1/keys', async (request, reply) => {
-    if (!request.tenantContext) {
-      return reply.code(401).send({
-        error: {
-          code: 'not_authenticated',
-          message: 'Authentication required',
-          requestId: request.id,
+  app.get<{ Reply: { keys: KeyMetadata[] } | ErrorResponse }>(
+    '/v1/keys',
+    {
+      schema: {
+        response: {
+          401: ErrorResponseSchema,
+          500: ErrorResponseSchema,
         },
-      })
-    }
+        tags: ['Keys'],
+        summary: 'List API keys',
+        description: 'Returns all API keys for the authenticated tenant. Keys are masked - only prefix and metadata shown.',
+        security: [{ BearerAuth: [] }],
+      },
+    },
+    async (request, reply) => {
+      if (!request.tenantContext) {
+        return reply.code(401).send({
+          error: {
+            code: 'not_authenticated',
+            message: 'Authentication required',
+            requestId: request.id,
+          },
+        })
+      }
 
-    const { tenantId } = request.tenantContext
+      const { tenantId } = request.tenantContext
 
-    try {
-      const keys = await db
+      try {
+        const keys = await db
         .select({
           id: apiKeys.id,
           keyPrefix: apiKeys.keyPrefix,
@@ -159,23 +200,37 @@ export async function keyRoutes(app: FastifyInstance) {
    * 
    * Requires 'admin' role
    */
-  app.delete('/v1/keys/:id', {
-    preHandler: requireRole('admin'),
-  }, async (request, reply) => {
-    if (!request.tenantContext) {
-      return reply.code(401).send({
-        error: {
-          code: 'not_authenticated',
-          message: 'Authentication required',
-          requestId: request.id,
+  app.delete<{ Params: { id: string }; Reply: any | ErrorResponse }>(
+    '/v1/keys/:id',
+    {
+      preHandler: requireRole('admin'),
+      schema: {
+        response: {
+          401: ErrorResponseSchema,
+          404: ErrorResponseSchema,
+          500: ErrorResponseSchema,
         },
-      })
-    }
+        tags: ['Keys'],
+        summary: 'Revoke API key',
+        description: 'Revokes (soft deletes) an API key. Revoked keys cannot be used for authentication.',
+        security: [{ BearerAuth: [] }],
+      },
+    },
+    async (request, reply) => {
+      if (!request.tenantContext) {
+        return reply.code(401).send({
+          error: {
+            code: 'not_authenticated',
+            message: 'Authentication required',
+            requestId: request.id,
+          },
+        })
+      }
 
-    const { tenantId } = request.tenantContext
-    const { id } = request.params as { id: string }
+      const { tenantId } = request.tenantContext
+      const { id } = request.params
 
-    // Validate UUID format to avoid SQL errors
+      // Validate UUID format to avoid SQL errors
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     if (!uuidRegex.test(id)) {
       return reply.code(404).send({

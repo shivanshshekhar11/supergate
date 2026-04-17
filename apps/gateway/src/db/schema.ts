@@ -1,5 +1,5 @@
 import { pgTable, uuid, text, timestamp, boolean, integer, numeric, index, pgPolicy, customType } from 'drizzle-orm/pg-core'
-import { sql } from 'drizzle-orm'
+import { sql, relations } from 'drizzle-orm'
 
 // Custom pgvector type
 const vector = customType<{ data: number[]; driverData: string }>({
@@ -114,3 +114,61 @@ export const tenantLLMKeys = pgTable(
     tenantProviderIdx: index('tenant_llm_keys_tenant_provider_idx').on(table.tenantId, table.provider, table.isActive),
   })
 )
+
+/**
+ * Users table
+ * Stores user accounts for dashboard authentication
+ * Uses bcrypt for password hashing
+ */
+export const users = pgTable('users', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  email: text('email').notNull().unique(),
+  passwordHash: text('password_hash').notNull(),
+  name: text('name').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
+/**
+ * User-Tenant relationship table (many-to-many)
+ * A user can belong to multiple tenants with different roles
+ * A tenant can have multiple users
+ */
+export const userTenants = pgTable(
+  'user_tenants',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    tenantId: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+    role: text('role').notNull().default('member'), // admin | member | guest
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    userTenantIdx: index('user_tenants_user_tenant_idx').on(table.userId, table.tenantId),
+  })
+)
+
+/**
+ * Relations for Drizzle ORM queries
+ */
+export const usersRelations = relations(users, ({ many }) => ({
+  userTenants: many(userTenants),
+}))
+
+export const tenantsRelations = relations(tenants, ({ many }) => ({
+  userTenants: many(userTenants),
+  apiKeys: many(apiKeys),
+  usageLogs: many(usageLogs),
+  cacheEntries: many(cacheEntries),
+  tenantLLMKeys: many(tenantLLMKeys),
+}))
+
+export const userTenantsRelations = relations(userTenants, ({ one }) => ({
+  user: one(users, {
+    fields: [userTenants.userId],
+    references: [users.id],
+  }),
+  tenant: one(tenants, {
+    fields: [userTenants.tenantId],
+    references: [tenants.id],
+  }),
+}))

@@ -25,3 +25,6 @@ export * from './health'
 
 // Error schemas
 export * from './errors'
+
+// Auth schemas (dashboard authentication)
+export * from './auth'

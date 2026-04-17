@@ -6,6 +6,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from 'vitest'
 import Fastify, { FastifyInstance } from 'fastify'
+import { fastifyZodOpenApiPlugin, serializerCompiler, validatorCompiler } from 'fastify-zod-openapi'
 import { usageRoutes } from './usage'
 import { authMiddleware } from '../middleware/auth'
 import { createTestTenant, createTestApiKey, cleanupTestTenant } from '../test/helpers'
@@ -21,6 +22,11 @@ describe('Usage Routes', () => {
 
   beforeAll(async () => {
     app = Fastify()
+
+    // Register Zod OpenAPI plugin
+    await app.register(fastifyZodOpenApiPlugin)
+    app.setValidatorCompiler(validatorCompiler)
+    app.setSerializerCompiler(serializerCompiler)
 
     // Register auth middleware
     app.addHook('onRequest', authMiddleware)

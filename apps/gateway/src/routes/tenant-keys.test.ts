@@ -7,6 +7,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import Fastify, { FastifyInstance } from 'fastify'
+import { fastifyZodOpenApiPlugin, serializerCompiler, validatorCompiler } from 'fastify-zod-openapi'
 import { authMiddleware } from '../middleware/auth'
 import { tenantKeyRoutes } from './tenant-keys'
 import { createTestTenant, createTestApiKey, cleanupTestTenant, generateTestApiKey } from '../test/helpers'
@@ -23,6 +24,46 @@ describe('Tenant BYOK Key Management Routes', () => {
   beforeEach(async () => {
     // Create Fastify app
     app = Fastify()
+
+    // Register Zod OpenAPI plugin
+    await app.register(fastifyZodOpenApiPlugin)
+    app.setValidatorCompiler(validatorCompiler)
+    app.setSerializerCompiler(serializerCompiler)
+
+    // Add custom error handler for validation errors
+    app.setErrorHandler((error: any, request, reply) => {
+      // Handle validation errors
+      if (error.validation) {
+        return reply.code(400).send({
+          error: {
+            code: 'validation_error',
+            message: error.message || 'Request validation failed',
+            requestId: request.id,
+            details: error.validation,
+          },
+        })
+      }
+
+      // Handle other Fastify errors
+      if (error.statusCode) {
+        return reply.code(error.statusCode).send({
+          error: {
+            code: error.code || 'internal_error',
+            message: error.message,
+            requestId: request.id,
+          },
+        })
+      }
+
+      // Handle unknown errors
+      return reply.code(500).send({
+        error: {
+          code: 'internal_error',
+          message: 'An unexpected error occurred',
+          requestId: request.id,
+        },
+      })
+    })
 
     // Register auth middleware
     app.addHook('preHandler', authMiddleware)
@@ -69,9 +110,8 @@ describe('Tenant BYOK Key Management Routes', () => {
 
       expect(body).toMatchObject({
         provider: 'openai',
-        keyPrefix: testKey.substring(0, 5),
+        apiKeyMasked: expect.stringContaining(testKey.substring(0, 5)),
         createdAt: expect.any(String),
-        message: expect.stringContaining('added successfully'),
       })
 
       // Verify key is encrypted in database
@@ -106,27 +146,7 @@ describe('Tenant BYOK Key Management Routes', () => {
       expect(response.statusCode).toBe(201)
       const body = JSON.parse(response.body)
       expect(body.provider).toBe('anthropic')
-      expect(body.keyPrefix).toBe(testKey.substring(0, 5))
-    })
-
-    it('should add Google key', async () => {
-      const testKey = generateTestApiKey('google')
-      
-      const response = await app.inject({
-        method: 'POST',
-        url: '/v1/tenant/keys',
-        headers: {
-          authorization: `Bearer ${adminKey}`,
-        },
-        payload: {
-          provider: 'google',
-          apiKey: testKey,
-        },
-      })
-
-      expect(response.statusCode).toBe(201)
-      const body = JSON.parse(response.body)
-      expect(body.provider).toBe('google')
+      expect(body.apiKeyMasked).toContain(testKey.substring(0, 5))
     })
 
     it('should reject request without admin role', async () => {

@@ -48,6 +48,9 @@ export const env = createEnv({
 
     // Encryption (for tenant BYOK keys)
     ENCRYPTION_MASTER_KEY: z.string().min(32),
+
+    // JWT Secret (for dashboard authentication)
+    JWT_SECRET: z.string().min(32),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,

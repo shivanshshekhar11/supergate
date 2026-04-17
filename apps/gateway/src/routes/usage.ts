@@ -34,6 +34,7 @@ export async function usageRoutes(app: FastifyInstance) {
    */
   app.get<{
     Querystring: z.infer<typeof UsageQuerySchema>
+    Reply: UsageSummary
   }>(
     '/v1/usage',
     {
@@ -45,7 +46,7 @@ export async function usageRoutes(app: FastifyInstance) {
       },
     },
     async (request, reply) => {
-      const period = (request.query as any).period || 'daily'
+      const period = request.query.period || 'daily'
       const { tenantId } = request.tenantContext!
 
       // Calculate date range based on period
@@ -141,7 +142,7 @@ export async function usageRoutes(app: FastifyInstance) {
    * 
    * Returns usage breakdown by model and provider for the authenticated tenant.
    */
-  app.get(
+  app.get<{ Reply: UsageBreakdown }>(
     '/v1/usage/breakdown',
     {
       schema: {

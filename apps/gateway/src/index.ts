@@ -2,12 +2,14 @@ import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import swagger from '@fastify/swagger'
 import swaggerUi from '@fastify/swagger-ui'
+import { fastifyZodOpenApiPlugin, fastifyZodOpenApiTransform, fastifyZodOpenApiTransformObject, serializerCompiler, validatorCompiler } from 'fastify-zod-openapi'
 import { env } from './config'
 import { healthRoutes } from './routes/health'
 import { chatRoutes } from './routes/chat'
 import { keyRoutes } from './routes/keys'
 import { tenantKeyRoutes } from './routes/tenant-keys'
 import { usageRoutes } from './routes/usage'
+import { registerAuthRoutes } from './routes/auth'
 import { authMiddleware } from './middleware/auth'
 import { rateLimitMiddleware } from './middleware/rate-limit'
 import { piiMaskMiddleware } from './middleware/pii-mask'
@@ -42,6 +44,49 @@ async function bootstrap() {
     credentials: true,
   })
 
+  // Register Zod OpenAPI plugin
+  await app.register(fastifyZodOpenApiPlugin)
+  
+  // Set validator and serializer
+  app.setValidatorCompiler(validatorCompiler)
+  app.setSerializerCompiler(serializerCompiler)
+
+  // Add custom error handler for validation errors
+  app.setErrorHandler((error: any, request, reply) => {
+    // Handle validation errors
+    if (error.validation) {
+      return reply.code(400).send({
+        error: {
+          code: 'validation_error',
+          message: error.message || 'Request validation failed',
+          requestId: request.id,
+          details: error.validation,
+        },
+      })
+    }
+
+    // Handle other Fastify errors
+    if (error.statusCode) {
+      return reply.code(error.statusCode).send({
+        error: {
+          code: error.code || 'internal_error',
+          message: error.message,
+          requestId: request.id,
+        },
+      })
+    }
+
+    // Handle unknown errors
+    console.error('Unhandled error:', error)
+    return reply.code(500).send({
+      error: {
+        code: 'internal_error',
+        message: 'An unexpected error occurred',
+        requestId: request.id,
+      },
+    })
+  })
+
   // Register Swagger
   await app.register(swagger, {
     openapi: {
@@ -67,6 +112,7 @@ async function bootstrap() {
         },
       },
       tags: [
+        { name: 'Auth', description: 'User authentication and registration' },
         { name: 'Chat', description: 'LLM chat completions' },
         { name: 'Usage', description: 'Usage tracking and cost attribution' },
         { name: 'Keys', description: 'API key management' },
@@ -74,6 +120,8 @@ async function bootstrap() {
         { name: 'Health', description: 'Service health checks' },
       ],
     },
+    transform: fastifyZodOpenApiTransform,
+    transformObject: fastifyZodOpenApiTransformObject,
   })
 
   // Register Swagger UI
@@ -92,10 +140,17 @@ async function bootstrap() {
   // Health endpoint doesn't need auth
   await app.register(healthRoutes)
   
+  // Auth endpoints don't need API key auth (they use their own JWT auth)
+  await app.register(registerAuthRoutes)
+  
   // Protected routes need auth + rate limiting
   app.addHook('onRequest', async (request, reply) => {
-    // Skip auth for health and docs endpoints
-    if (request.url.startsWith('/health') || request.url.startsWith('/docs')) {
+    // Skip auth for health, docs, and auth endpoints
+    if (
+      request.url.startsWith('/health') ||
+      request.url.startsWith('/docs') ||
+      request.url.startsWith('/v1/auth')
+    ) {
       return
     }
     
@@ -104,8 +159,12 @@ async function bootstrap() {
   })
   
   app.addHook('preHandler', async (request, reply) => {
-    // Skip rate limiting for health and docs endpoints
-    if (request.url.startsWith('/health') || request.url.startsWith('/docs')) {
+    // Skip rate limiting for health, docs, and auth endpoints
+    if (
+      request.url.startsWith('/health') ||
+      request.url.startsWith('/docs') ||
+      request.url.startsWith('/v1/auth')
+    ) {
       return
     }
     
@@ -124,8 +183,12 @@ async function bootstrap() {
   
   // Usage logger runs after response (fire-and-forget)
   app.addHook('onResponse', async (request, reply) => {
-    // Skip for health and docs endpoints
-    if (request.url.startsWith('/health') || request.url.startsWith('/docs')) {
+    // Skip for health, docs, and auth endpoints
+    if (
+      request.url.startsWith('/health') ||
+      request.url.startsWith('/docs') ||
+      request.url.startsWith('/v1/auth')
+    ) {
       return
     }
     

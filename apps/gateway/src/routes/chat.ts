@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify'
-import { ChatRequestSchema } from '@llm-gateway/schemas'
+import { ChatRequestSchema, ChatResponseSchema, ErrorResponseSchema, type ChatRequest, type ChatResponse, type ErrorResponse } from '@llm-gateway/schemas'
 import { getProviderForRequest } from '../providers/router'
 import { randomUUID } from 'crypto'
 
@@ -13,32 +13,50 @@ import { randomUUID } from 'crypto'
  * 3. This handler
  */
 export async function chatRoutes(app: FastifyInstance) {
-  app.post('/v1/chat/completions', async (request, reply) => {
-    const startTime = Date.now()
-    const requestId = randomUUID()
-
-    // Store for usage logger
-    request.startTime = startTime
-    request.requestId = requestId
-
-    // Ensure tenant context exists (should be set by auth middleware)
-    if (!request.tenantContext) {
-      return reply.code(401).send({
-        error: {
-          code: 'not_authenticated',
-          message: 'Authentication required',
-          requestId,
+  app.post<{ Body: ChatRequest; Reply: ChatResponse | ErrorResponse }>(
+    '/v1/chat/completions',
+    {
+      schema: {
+        body: ChatRequestSchema,
+        response: {
+          200: ChatResponseSchema,
+          400: ErrorResponseSchema,
+          401: ErrorResponseSchema,
+          500: ErrorResponseSchema,
+          503: ErrorResponseSchema,
         },
-      })
-    }
+        tags: ['Chat'],
+        summary: 'Create chat completion',
+        description: 'OpenAI-compatible chat completion endpoint. Supports streaming and non-streaming responses. Includes semantic caching, PII masking, and rate limiting.',
+        security: [{ BearerAuth: [] }],
+      },
+    },
+    async (request, reply) => {
+      const startTime = Date.now()
+      const requestId = randomUUID()
 
-    const { tenantId } = request.tenantContext
+      // Store for usage logger
+      request.startTime = startTime
+      request.requestId = requestId
 
-    try {
-      // Parse and validate request body
-      const body = ChatRequestSchema.parse(request.body)
+      // Ensure tenant context exists (should be set by auth middleware)
+      if (!request.tenantContext) {
+        return reply.code(401).send({
+          error: {
+            code: 'not_authenticated',
+            message: 'Authentication required',
+            requestId,
+          },
+        })
+      }
 
-      // Get provider (with BYOK support)
+      const { tenantId } = request.tenantContext
+
+      try {
+        // Body is already validated by Fastify schema validation
+        const body = request.body
+
+        // Get provider (with BYOK support)
       const provider = await getProviderForRequest(body.model, tenantId)
 
       // Handle streaming
@@ -117,18 +135,6 @@ export async function chatRoutes(app: FastifyInstance) {
       return response
     } catch (error: any) {
       console.error('[Chat] Error:', error)
-
-      // Handle validation errors
-      if (error.name === 'ZodError') {
-        return reply.code(400).send({
-          error: {
-            code: 'invalid_request',
-            message: 'Invalid request body',
-            details: error.errors,
-            requestId,
-          },
-        })
-      }
 
       // Handle provider errors
       if (error.message?.includes('circuit breaker')) {

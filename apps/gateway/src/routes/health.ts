@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify'
-import { HealthResponseSchema } from '@llm-gateway/schemas'
+import { HealthResponseSchema, ErrorResponseSchema, type HealthResponse, type ErrorResponse } from '@llm-gateway/schemas'
 import { testConnection } from '../db/client'
 import { testRedisConnection } from '../redis/client'
 import { getAllProviders } from '../providers/router'
@@ -11,7 +11,20 @@ const startTime = Date.now()
  * Returns service status and dependency health
  */
 export async function healthRoutes(app: FastifyInstance) {
-  app.get('/health', async (request, reply) => {
+  app.get<{ Reply: HealthResponse | ErrorResponse }>(
+    '/health',
+    {
+      schema: {
+        response: {
+          200: HealthResponseSchema,
+          503: HealthResponseSchema,
+        },
+        tags: ['Health'],
+        summary: 'Health check',
+        description: 'Returns service status and dependency health including database, Redis, and provider circuit breaker states',
+      },
+    },
+    async (request, reply) => {
     const startCheck = Date.now()
 
     // Test database connection
@@ -38,17 +51,14 @@ export async function healthRoutes(app: FastifyInstance) {
     const providerStates = providers.map((provider) => {
       const state = provider.getCircuitBreakerState()
       return {
-        name: provider.constructor.name.replace('Provider', '').toLowerCase(),
-        circuitBreaker: {
-          state: state.state,
-          failures: state.failures,
-          lastFailure: state.lastFailure,
-          nextRetry: state.nextRetry,
-        },
+        provider: provider.constructor.name.replace('Provider', '').toLowerCase(),
+        state: state.state.toUpperCase() as 'CLOSED' | 'OPEN' | 'HALF_OPEN',
+        failures: state.failures,
+        lastFailure: state.lastFailure,
       }
     })
 
-    const response = {
+    const response: HealthResponse = {
       status,
       timestamp: new Date().toISOString(),
       uptime: Math.floor((Date.now() - startTime) / 1000),

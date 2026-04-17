@@ -1,4 +1,15 @@
 import { FastifyInstance } from 'fastify'
+import { z } from 'zod'
+import {
+  StoreTenantKeyRequestSchema,
+  StoreTenantKeyResponseSchema,
+  TenantKeyMetadataSchema,
+  ErrorResponseSchema,
+  type StoreTenantKeyRequest,
+  type StoreTenantKeyResponse,
+  type TenantKeyMetadata,
+  type ErrorResponse,
+} from '@llm-gateway/schemas'
 import { requireRole } from '../middleware/auth'
 import {
   storeTenantLLMKey,
@@ -23,9 +34,26 @@ export async function tenantKeyRoutes(app: FastifyInstance) {
    * Stores an encrypted LLM provider API key for the tenant
    * Enables BYOK (Bring Your Own Key) functionality
    */
-  app.post('/v1/tenant/keys', {
-    preHandler: requireRole('admin'),
-  }, async (request, reply) => {
+  app.post<{ Body: StoreTenantKeyRequest; Reply: StoreTenantKeyResponse | ErrorResponse }>(
+    '/v1/tenant/keys',
+    {
+      preHandler: requireRole('admin'),
+      schema: {
+        body: StoreTenantKeyRequestSchema,
+        response: {
+          201: StoreTenantKeyResponseSchema,
+          400: ErrorResponseSchema,
+          401: ErrorResponseSchema,
+          409: ErrorResponseSchema,
+          500: ErrorResponseSchema,
+        },
+        tags: ['Tenant Keys'],
+        summary: 'Add tenant LLM provider key',
+        description: 'Stores an encrypted LLM provider API key for the tenant. Enables BYOK (Bring Your Own Key) functionality.',
+        security: [{ BearerAuth: [] }],
+      },
+    },
+    async (request, reply) => {
     if (!request.tenantContext) {
       return reply.code(401).send({
         error: {
@@ -33,43 +61,17 @@ export async function tenantKeyRoutes(app: FastifyInstance) {
           message: 'Authentication required',
           requestId: request.id,
         },
-      })
+      } as any)
     }
 
     const { tenantId } = request.tenantContext
-    const body = request.body as any
-
-    // Validate request body
-    if (!body.provider || !body.apiKey) {
-      return reply.code(400).send({
-        error: {
-          code: 'invalid_request',
-          message: 'provider and apiKey are required',
-          requestId: request.id,
-        },
-      })
-    }
-
-    const { provider, apiKey } = body
-
-    // Validate provider
-    const validProviders = ['openai', 'anthropic', 'google', 'cohere', 'mistral']
-    if (!validProviders.includes(provider)) {
-      return reply.code(400).send({
-        error: {
-          code: 'invalid_provider',
-          message: `Invalid provider. Must be one of: ${validProviders.join(', ')}`,
-          requestId: request.id,
-          validProviders,
-        },
-      })
-    }
+    const { provider, apiKey } = request.body
 
     try {
       // Store encrypted key
       const result = await storeTenantLLMKey(
         tenantId,
-        provider as 'openai' | 'anthropic' | 'google' | 'cohere' | 'mistral',
+        provider,
         apiKey
       )
 
@@ -78,13 +80,14 @@ export async function tenantKeyRoutes(app: FastifyInstance) {
         `provider=${provider}, masked=${result.apiKeyMasked}`
       )
 
-      return reply.code(201).send({
+      const response: StoreTenantKeyResponse = {
         id: result.id,
         provider,
-        keyPrefix: result.apiKeyMasked.substring(0, 5), // First 5 chars as prefix
+        apiKeyMasked: result.apiKeyMasked,
         createdAt: result.createdAt.toISOString(),
-        message: `${provider} API key added successfully`,
-      })
+      }
+
+      return reply.code(201).send(response)
     } catch (error: any) {
       console.error('[TenantKeys] Error storing key:', error)
 
@@ -127,30 +130,44 @@ export async function tenantKeyRoutes(app: FastifyInstance) {
    * Returns all BYOK keys for the tenant
    * Keys are masked for security
    */
-  app.get('/v1/tenant/keys', async (request, reply) => {
-    if (!request.tenantContext) {
-      return reply.code(401).send({
-        error: {
-          code: 'not_authenticated',
-          message: 'Authentication required',
-          requestId: request.id,
+  app.get<{ Reply: { keys: TenantKeyMetadata[] } | ErrorResponse }>(
+    '/v1/tenant/keys',
+    {
+      schema: {
+        response: {
+          401: ErrorResponseSchema,
+          500: ErrorResponseSchema,
         },
-      })
-    }
+        tags: ['Tenant Keys'],
+        summary: 'List tenant LLM provider keys',
+        description: 'Returns all BYOK keys for the tenant. Keys are masked for security.',
+        security: [{ BearerAuth: [] }],
+      },
+    },
+    async (request, reply) => {
+      if (!request.tenantContext) {
+        return reply.code(401).send({
+          error: {
+            code: 'not_authenticated',
+            message: 'Authentication required',
+            requestId: request.id,
+          },
+        })
+      }
 
-    const { tenantId } = request.tenantContext
+      const { tenantId } = request.tenantContext
 
-    try {
-      const keys = await listTenantLLMKeys(tenantId)
+      try {
+        const keys = await listTenantLLMKeys(tenantId)
 
-      return {
-        keys: keys.map((key) => ({
-          id: key.id,
-          provider: key.provider,
-          apiKeyMasked: key.apiKeyMasked,
-          isActive: key.isActive,
-          lastUsed: key.lastUsed,
-          createdAt: key.createdAt,
+        return {
+          keys: keys.map((key) => ({
+            id: key.id,
+            provider: key.provider,
+            apiKeyMasked: key.apiKeyMasked,
+            isActive: key.isActive,
+            lastUsed: key.lastUsed,
+            createdAt: key.createdAt,
         })),
       }
     } catch (error) {
@@ -172,9 +189,26 @@ export async function tenantKeyRoutes(app: FastifyInstance) {
    * Deactivates (soft deletes) a tenant's BYOK key for a specific provider
    * After deletion, requests will fall back to gateway keys (if tier allows)
    */
-  app.delete('/v1/tenant/keys/:provider', {
-    preHandler: requireRole('admin'),
-  }, async (request, reply) => {
+  app.delete<{ Params: { provider: string }; Reply: any | ErrorResponse }>(
+    '/v1/tenant/keys/:provider',
+    {
+      preHandler: requireRole('admin'),
+      schema: {
+        params: z.object({
+          provider: z.string(),
+        }),
+        response: {
+          401: ErrorResponseSchema,
+          404: ErrorResponseSchema,
+          500: ErrorResponseSchema,
+        },
+        tags: ['Tenant Keys'],
+        summary: 'Delete tenant LLM provider key',
+        description: 'Deactivates (soft deletes) a tenant\'s BYOK key for a specific provider. After deletion, requests will fall back to gateway keys (if tier allows).',
+        security: [{ BearerAuth: [] }],
+      },
+    },
+    async (request, reply) => {
     if (!request.tenantContext) {
       return reply.code(401).send({
         error: {
@@ -186,20 +220,7 @@ export async function tenantKeyRoutes(app: FastifyInstance) {
     }
 
     const { tenantId, tenantTier } = request.tenantContext
-    const { provider } = request.params as { provider: string }
-
-    // Validate provider
-    const validProviders = ['openai', 'anthropic', 'google', 'cohere', 'mistral']
-    if (!validProviders.includes(provider)) {
-      return reply.code(400).send({
-        error: {
-          code: 'invalid_provider',
-          message: `Invalid provider. Must be one of: ${validProviders.join(', ')}`,
-          requestId: request.id,
-          validProviders,
-        },
-      })
-    }
+    const { provider } = request.params
 
     // Warn enterprise-independent tenants
     if (tenantTier === 'enterprise-independent') {
@@ -275,9 +296,29 @@ export async function tenantKeyRoutes(app: FastifyInstance) {
    * Updates (replaces) a tenant's BYOK key for a specific provider
    * Useful for key rotation
    */
-  app.put('/v1/tenant/keys/:provider', {
-    preHandler: requireRole('admin'),
-  }, async (request, reply) => {
+  app.put<{ Params: { provider: string }; Body: { apiKey: string }; Reply: any | ErrorResponse }>(
+    '/v1/tenant/keys/:provider',
+    {
+      preHandler: requireRole('admin'),
+      schema: {
+        params: z.object({
+          provider: z.string(),
+        }),
+        body: z.object({
+          apiKey: z.string().min(20),
+        }),
+        response: {
+          400: ErrorResponseSchema,
+          401: ErrorResponseSchema,
+          500: ErrorResponseSchema,
+        },
+        tags: ['Tenant Keys'],
+        summary: 'Update tenant LLM provider key',
+        description: 'Updates (replaces) a tenant\'s BYOK key for a specific provider. Useful for key rotation.',
+        security: [{ BearerAuth: [] }],
+      },
+    },
+    async (request, reply) => {
     if (!request.tenantContext) {
       return reply.code(401).send({
         error: {
@@ -289,40 +330,14 @@ export async function tenantKeyRoutes(app: FastifyInstance) {
     }
 
     const { tenantId } = request.tenantContext
-    const { provider } = request.params as { provider: string }
-    const body = request.body as any
-
-    // Validate request body
-    if (!body.apiKey) {
-      return reply.code(400).send({
-        error: {
-          code: 'invalid_request',
-          message: 'apiKey is required',
-          requestId: request.id,
-        },
-      })
-    }
-
-    const { apiKey } = body
-
-    // Validate provider
-    const validProviders = ['openai', 'anthropic', 'google', 'cohere', 'mistral']
-    if (!validProviders.includes(provider)) {
-      return reply.code(400).send({
-        error: {
-          code: 'invalid_provider',
-          message: `Invalid provider. Must be one of: ${validProviders.join(', ')}`,
-          requestId: request.id,
-          validProviders,
-        },
-      })
-    }
+    const { provider } = request.params
+    const { apiKey } = request.body
 
     try {
       // Update key (this automatically deactivates old keys for this provider)
       const result = await updateTenantLLMKey(
         tenantId,
-        provider as 'openai' | 'anthropic' | 'google' | 'cohere' | 'mistral',
+        provider as any,
         apiKey
       )
 

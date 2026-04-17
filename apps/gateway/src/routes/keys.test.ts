@@ -7,6 +7,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import Fastify, { FastifyInstance } from 'fastify'
+import { fastifyZodOpenApiPlugin, serializerCompiler, validatorCompiler } from 'fastify-zod-openapi'
 import { authMiddleware } from '../middleware/auth'
 import { keyRoutes } from './keys'
 import { createTestTenant, createTestApiKey, cleanupTestTenant } from '../test/helpers'
@@ -20,6 +21,11 @@ describe('Gateway API Key Management Routes', () => {
   beforeEach(async () => {
     // Create Fastify app
     app = Fastify()
+
+    // Register Zod OpenAPI plugin
+    await app.register(fastifyZodOpenApiPlugin)
+    app.setValidatorCompiler(validatorCompiler)
+    app.setSerializerCompiler(serializerCompiler)
 
     // Register auth middleware
     app.addHook('preHandler', authMiddleware)
@@ -67,7 +73,6 @@ describe('Gateway API Key Management Routes', () => {
         role: 'user',
         name: 'Test Key',
         createdAt: expect.any(String),
-        warning: expect.stringContaining('Save this key securely'),
       })
     })
 

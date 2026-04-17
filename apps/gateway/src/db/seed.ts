@@ -1,5 +1,5 @@
 import { db, pool } from './client'
-import { tenants, apiKeys } from './schema'
+import { tenants, apiKeys, users, userTenants } from './schema'
 import { randomBytes } from 'crypto'
 import bcrypt from 'bcryptjs'
 import { eq } from 'drizzle-orm'
@@ -100,6 +100,45 @@ async function seed() {
 
     console.log(`✓ Created Enterprise-Independent API key (ID: ${independentApiKey.id})`)
 
+    // 3. Create test user with Pro tenant access
+    const testEmail = 'admin@example.com'
+    const testPassword = 'password123'
+    
+    const existingUser = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, testEmail))
+      .limit(1)
+
+    let userId: string
+
+    if (existingUser.length > 0) {
+      userId = existingUser[0].id
+      console.log(`✓ Test user already exists (ID: ${userId})`)
+    } else {
+      const passwordHash = await bcrypt.hash(testPassword, 10)
+      const [user] = await db
+        .insert(users)
+        .values({
+          email: testEmail,
+          passwordHash,
+          name: 'Test Admin',
+        })
+        .returning()
+
+      userId = user.id
+      console.log(`✓ Created test user (ID: ${userId})`)
+
+      // Link user to Pro tenant as admin
+      await db.insert(userTenants).values({
+        userId,
+        tenantId: proTenantId,
+        role: 'admin',
+      })
+
+      console.log(`✓ Linked user to Pro tenant as admin`)
+    }
+
     // Print results
     console.log(`\n${'='.repeat(70)}`)
     console.log('🔑 API KEYS (save these - they will not be shown again):')
@@ -116,6 +155,12 @@ async function seed() {
     console.log(`   Usage: Authorization: Bearer ${independentRawKey}`)
     console.log(`   ⚠️  This tenant MUST configure BYOK keys for each provider`)
     console.log(`   ⚠️  Requests will fail if provider key is not configured`)
+    
+    console.log('\n3. TEST USER (for dashboard login):')
+    console.log(`   Email: ${testEmail}`)
+    console.log(`   Password: ${testPassword}`)
+    console.log(`   Tenant: Test Tenant (Pro)`)
+    console.log(`   Role: admin`)
     
     console.log(`\n${'='.repeat(70)}\n`)
 

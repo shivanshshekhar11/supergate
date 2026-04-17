@@ -12,6 +12,7 @@ process.env.REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379'
 process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY || 'sk-test-key'
 process.env.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || 'sk-ant-test-key'
 process.env.ENCRYPTION_MASTER_KEY = process.env.ENCRYPTION_MASTER_KEY || 'test-encryption-key-32-chars-long-minimum'
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret-key-at-least-32-characters-long-for-testing'
 process.env.PORT = '3001'
 process.env.LOG_LEVEL = 'error' // Reduce noise in tests
 
