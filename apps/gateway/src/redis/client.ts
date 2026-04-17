@@ -39,6 +39,13 @@ export async function testRedisConnection(): Promise<boolean> {
 }
 
 /**
+ * Get Redis client instance
+ */
+export function getRedisClient(): Redis {
+  return redis
+}
+
+/**
  * Close Redis connection
  */
 export async function closeRedisConnection(): Promise<void> {

@@ -5,6 +5,10 @@ import swaggerUi from '@fastify/swagger-ui'
 import { env } from './config'
 import { healthRoutes } from './routes/health'
 import { chatRoutes } from './routes/chat'
+import { keyRoutes } from './routes/keys'
+import { tenantKeyRoutes } from './routes/tenant-keys'
+import { authMiddleware } from './middleware/auth'
+import { rateLimitMiddleware } from './middleware/rate-limit'
 import { closeConnection } from './db/client'
 import { closeRedisConnection } from './redis/client'
 
@@ -75,9 +79,37 @@ async function bootstrap() {
     staticCSP: true,
   })
 
-  // Register routes
+  // Register global middleware
+  // Order matters: auth → rate-limit → routes
+  
+  // Health endpoint doesn't need auth
   await app.register(healthRoutes)
+  
+  // Protected routes need auth + rate limiting
+  app.addHook('onRequest', async (request, reply) => {
+    // Skip auth for health and docs endpoints
+    if (request.url.startsWith('/health') || request.url.startsWith('/docs')) {
+      return
+    }
+    
+    // Apply auth middleware
+    await authMiddleware(request, reply)
+  })
+  
+  app.addHook('preHandler', async (request, reply) => {
+    // Skip rate limiting for health and docs endpoints
+    if (request.url.startsWith('/health') || request.url.startsWith('/docs')) {
+      return
+    }
+    
+    // Apply rate limiting middleware
+    await rateLimitMiddleware(request, reply)
+  })
+  
+  // Register protected routes
   await app.register(chatRoutes)
+  await app.register(keyRoutes)
+  await app.register(tenantKeyRoutes)
 
   // Graceful shutdown
   const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM']

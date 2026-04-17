@@ -112,8 +112,65 @@ export async function getTenantLLMKey(
 
 /**
  * Store a tenant's LLM API key (BYOK)
+ * Throws error if key already exists for this provider
  */
 export async function storeTenantLLMKey(
+  tenantId: string,
+  provider: 'openai' | 'anthropic' | 'google' | 'cohere' | 'mistral',
+  apiKey: string
+): Promise<{ id: string; apiKeyMasked: string; createdAt: Date }> {
+  // Validate key format
+  if (!validateApiKeyFormat(apiKey, provider)) {
+    throw new Error(`Invalid ${provider} API key format`)
+  }
+  
+  // Check if key already exists for this provider
+  const existing = await db
+    .select()
+    .from(tenantLLMKeys)
+    .where(
+      and(
+        eq(tenantLLMKeys.tenantId, tenantId),
+        eq(tenantLLMKeys.provider, provider),
+        eq(tenantLLMKeys.isActive, true)
+      )
+    )
+    .limit(1)
+  
+  if (existing.length > 0) {
+    throw new Error(`Key already exists for provider ${provider}. Use PUT to update.`)
+  }
+  
+  // Encrypt the key
+  const { encrypted, iv } = encryptApiKey(apiKey)
+  
+  // Insert new key
+  const [result] = await db
+    .insert(tenantLLMKeys)
+    .values({
+      tenantId,
+      provider,
+      apiKeyEncrypted: encrypted,
+      iv,
+      isActive: true,
+    })
+    .returning()
+  
+  // Invalidate cache
+  keyCache.delete(`${tenantId}:${provider}`)
+  
+  return {
+    id: result.id,
+    apiKeyMasked: maskApiKey(apiKey),
+    createdAt: result.createdAt,
+  }
+}
+
+/**
+ * Update a tenant's LLM API key (BYOK)
+ * Deactivates old key and creates new one
+ */
+export async function updateTenantLLMKey(
   tenantId: string,
   provider: 'openai' | 'anthropic' | 'google' | 'cohere' | 'mistral',
   apiKey: string

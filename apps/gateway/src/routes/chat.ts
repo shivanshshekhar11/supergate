@@ -7,21 +7,32 @@ import { randomUUID } from 'crypto'
  * Chat completion route
  * OpenAI-compatible endpoint supporting both streaming and non-streaming
  * 
- * For Week 1: No auth, rate limiting, or caching yet
- * These will be added in subsequent weeks
+ * Middleware order:
+ * 1. Auth middleware (extracts tenant from API key)
+ * 2. Rate limiting middleware (checks TPM/RPM limits)
+ * 3. This handler
  */
 export async function chatRoutes(app: FastifyInstance) {
   app.post('/v1/chat/completions', async (request, reply) => {
     const startTime = Date.now()
     const requestId = randomUUID()
 
+    // Ensure tenant context exists (should be set by auth middleware)
+    if (!request.tenantContext) {
+      return reply.code(401).send({
+        error: {
+          code: 'not_authenticated',
+          message: 'Authentication required',
+          requestId,
+        },
+      })
+    }
+
+    const { tenantId } = request.tenantContext
+
     try {
       // Parse and validate request body
       const body = ChatRequestSchema.parse(request.body)
-
-      // For Week 1: Use a test tenant ID
-      // In Week 2, this will come from auth middleware
-      const tenantId = 'test-tenant-id'
 
       // Get provider (with BYOK support)
       const provider = await getProviderForRequest(body.model, tenantId)
