@@ -52,3 +52,6 @@ export const env = createEnv({
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,
 })
+
+// Re-export for convenience
+export const config = env

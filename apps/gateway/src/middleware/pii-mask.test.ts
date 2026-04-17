@@ -229,8 +229,8 @@ describe('PII Masking Middleware', () => {
       await piiMaskMiddleware(request, reply)
 
       // Original should be unchanged
-      expect(request.body.messages).toEqual(originalMessages)
-      expect(request.body.messages[0].content).toBe('My email is john@example.com')
+      expect((request.body as any).messages).toEqual(originalMessages)
+      expect((request.body as any).messages[0].content).toBe('My email is john@example.com')
 
       // Masked version should be different
       expect(request.maskedMessages![0].content).toBe('My email is [EMAIL]')

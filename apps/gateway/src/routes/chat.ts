@@ -108,6 +108,12 @@ export async function chatRoutes(app: FastifyInstance) {
       reply.header('X-Latency-Ms', latencyMs.toString())
       reply.header('X-Cache', 'MISS') // Will be overridden by cache middleware if HIT
 
+      // Store cache entry if we have prompt hash and embedding from semantic cache middleware
+      if (request.promptHash && request.promptEmbedding) {
+        const { storeCacheEntry } = await import('../middleware/semantic-cache')
+        await storeCacheEntry(tenantId, body.model, request.promptHash, request.promptEmbedding, response)
+      }
+
       return response
     } catch (error: any) {
       console.error('[Chat] Error:', error)

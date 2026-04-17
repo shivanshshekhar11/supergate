@@ -14,6 +14,7 @@ import { piiMaskMiddleware } from './middleware/pii-mask'
 import { usageLoggerMiddleware } from './middleware/usage-logger'
 import { closeConnection } from './db/client'
 import { closeRedisConnection } from './redis/client'
+import { startCacheCleanupJob } from './lib/cache-cleanup'
 
 /**
  * Bootstrap Fastify application
@@ -113,6 +114,12 @@ async function bootstrap() {
     
     // Apply PII masking middleware (for chat requests)
     await piiMaskMiddleware(request, reply)
+    
+    // Apply semantic cache middleware (for non-streaming chat requests)
+    if (request.url === '/v1/chat/completions' && request.method === 'POST') {
+      const { semanticCacheMiddleware } = await import('./middleware/semantic-cache')
+      await semanticCacheMiddleware(request, reply)
+    }
   })
   
   // Usage logger runs after response (fire-and-forget)
@@ -124,6 +131,12 @@ async function bootstrap() {
     
     // Log usage data
     await usageLoggerMiddleware(request, reply)
+    
+    // Clear embedding cache to prevent memory leaks
+    if (request.url === '/v1/chat/completions') {
+      const { cleanupEmbeddingCache } = await import('./middleware/semantic-cache')
+      await cleanupEmbeddingCache(request, reply)
+    }
   })
   
   // Register protected routes
@@ -150,6 +163,9 @@ async function bootstrap() {
     console.log(`\n🚀 Gateway running on http://localhost:${env.PORT}`)
     console.log(`📊 Health check: http://localhost:${env.PORT}/health`)
     console.log(`📚 API docs: http://localhost:${env.PORT}/docs`)
+    
+    // Start cache cleanup job
+    startCacheCleanupJob()
   } catch (err) {
     app.log.error(err)
     process.exit(1)
