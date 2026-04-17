@@ -38,9 +38,6 @@ Thumbs.db
 # Testing
 coverage/
 
-# Drizzle
-drizzle/
-
 # Turbo
 .turbo/
 
