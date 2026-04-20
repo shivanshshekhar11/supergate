@@ -11,12 +11,56 @@ import {
   type ErrorResponse,
 } from '@llm-gateway/schemas'
 import { requireRole } from '../middleware/auth'
+import { dashboardAuthMiddleware } from '../middleware/dashboard-auth'
+import { authMiddleware } from '../middleware/auth'
 import {
   storeTenantLLMKey,
   updateTenantLLMKey,
   listTenantLLMKeys,
   deleteTenantLLMKey,
 } from '../lib/tenant-keys'
+
+/**
+ * Hybrid auth: accepts JWT (dashboard) or API key (programmatic).
+ * Populates request.tenantContext from whichever succeeds.
+ */
+async function hybridAuth(request: any, reply: any) {
+  const authHeader = request.headers.authorization
+  if (!authHeader) {
+    return reply.code(401).send({ error: { code: 'unauthorized', message: 'Missing authorization header' } })
+  }
+
+  if (authHeader.startsWith('Bearer eyJ')) {
+    await dashboardAuthMiddleware(request, reply)
+    // dashboardAuthMiddleware sends its own reply on failure — don't fall through
+    if (reply.sent) return
+    // Map userContext → tenantContext shape so route handlers work uniformly
+    if (request.userContext) {
+      request.tenantContext = {
+        tenantId:   request.userContext.tenantId,
+        keyId:      request.userContext.userId,
+        keyRole:    request.userContext.role,
+        tenantTier: 'pro',
+      }
+    }
+    return
+  }
+
+  // API key path
+  await authMiddleware(request, reply)
+}
+
+/**
+ * Role guard for hybrid auth — works for both JWT and API key paths.
+ */
+async function requireAdminHybrid(request: any, reply: any) {
+  await hybridAuth(request, reply)
+  if (reply.sent) return
+  const role = request.tenantContext?.keyRole ?? request.userContext?.role
+  if (role !== 'admin') {
+    return reply.code(403).send({ error: { code: 'insufficient_permissions', message: 'Admin role required' } })
+  }
+}
 
 /**
  * Tenant BYOK (Bring Your Own Key) Management Routes
@@ -37,7 +81,7 @@ export async function tenantKeyRoutes(app: FastifyInstance) {
   app.post<{ Body: StoreTenantKeyRequest; Reply: StoreTenantKeyResponse | ErrorResponse }>(
     '/v1/tenant/keys',
     {
-      preHandler: requireRole('admin'),
+      preHandler: requireAdminHybrid,
       schema: {
         body: StoreTenantKeyRequestSchema,
         response: {
@@ -133,6 +177,7 @@ export async function tenantKeyRoutes(app: FastifyInstance) {
   app.get<{ Reply: { keys: TenantKeyMetadata[] } | ErrorResponse }>(
     '/v1/tenant/keys',
     {
+      preHandler: hybridAuth,
       schema: {
         response: {
           401: ErrorResponseSchema,
@@ -192,7 +237,7 @@ export async function tenantKeyRoutes(app: FastifyInstance) {
   app.delete<{ Params: { provider: string }; Reply: any | ErrorResponse }>(
     '/v1/tenant/keys/:provider',
     {
-      preHandler: requireRole('admin'),
+      preHandler: requireAdminHybrid,
       schema: {
         params: z.object({
           provider: z.string(),
@@ -299,7 +344,7 @@ export async function tenantKeyRoutes(app: FastifyInstance) {
   app.put<{ Params: { provider: string }; Body: { apiKey: string }; Reply: any | ErrorResponse }>(
     '/v1/tenant/keys/:provider',
     {
-      preHandler: requireRole('admin'),
+      preHandler: requireAdminHybrid,
       schema: {
         params: z.object({
           provider: z.string(),

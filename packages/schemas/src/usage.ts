@@ -43,3 +43,23 @@ export type DailyUsage = z.infer<typeof DailyUsageSchema>
 export type UsageSummary = z.infer<typeof UsageSummarySchema>
 export type UsageBreakdownItem = z.infer<typeof UsageBreakdownItemSchema>
 export type UsageBreakdown = z.infer<typeof UsageBreakdownSchema>
+
+/**
+ * Chart data bucket — one bar in the dashboard chart
+ */
+export const ChartBucketSchema = z.object({
+  label: z.string(),       // x-axis label e.g. "14:00", "Mon", "Apr 13"
+  requests: z.number(),
+  cacheHits: z.number(),
+  costUsd: z.number(),
+  avgLatencyMs: z.number(), // avg latency for requests in this bucket (0 if no requests)
+})
+
+export const UsageChartResponseSchema = z.object({
+  timeRange: z.enum(['24h', '7d', '30d']),
+  provider: z.string().nullable(),
+  buckets: z.array(ChartBucketSchema),
+})
+
+export type ChartBucket = z.infer<typeof ChartBucketSchema>
+export type UsageChartResponse = z.infer<typeof UsageChartResponseSchema>

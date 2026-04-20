@@ -217,7 +217,7 @@ export async function updateTenantLLMKey(
 }
 
 /**
- * List tenant's LLM keys (masked)
+ * List tenant's LLM keys (masked) — active only
  */
 export async function listTenantLLMKeys(tenantId: string) {
   const results = await db
@@ -231,7 +231,12 @@ export async function listTenantLLMKeys(tenantId: string) {
       createdAt: tenantLLMKeys.createdAt,
     })
     .from(tenantLLMKeys)
-    .where(eq(tenantLLMKeys.tenantId, tenantId))
+    .where(
+      and(
+        eq(tenantLLMKeys.tenantId, tenantId),
+        eq(tenantLLMKeys.isActive, true)
+      )
+    )
   
   // Decrypt just to mask (we need the plaintext to mask properly)
   return results.map((row) => {

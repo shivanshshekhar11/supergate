@@ -15,6 +15,13 @@
       "when": 1776413801444,
       "tag": "0001_young_the_phantom",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1776665222235,
+      "tag": "0002_odd_red_wolf",
+      "breakpoints": true
     }
   ]
 }

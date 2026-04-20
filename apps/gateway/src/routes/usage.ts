@@ -20,9 +20,52 @@ import {
   type UsageSummary,
   type UsageBreakdown,
 } from '@llm-gateway/schemas'
+import { dashboardAuthMiddleware } from '../middleware/dashboard-auth'
+import { authMiddleware } from '../middleware/auth'
+
+// Hybrid auth middleware that accepts both JWT (dashboard) and API key (tests/programmatic)
+async function hybridAuthMiddleware(request: any, reply: any) {
+  const authHeader = request.headers.authorization
+  
+  if (!authHeader) {
+    return reply.code(401).send({
+      error: {
+        code: 'unauthorized',
+        message: 'Missing authorization header',
+      },
+    })
+  }
+
+  // Try JWT auth first (for dashboard) - JWT tokens start with "eyJ"
+  if (authHeader.startsWith('Bearer eyJ')) {
+    try {
+      await dashboardAuthMiddleware(request, reply)
+      return
+    } catch (error) {
+      // If JWT fails, fall through to API key auth
+    }
+  }
+
+  // Try API key auth (for tests and programmatic access)
+  await authMiddleware(request, reply)
+  
+  // Map tenantContext to userContext for consistency
+  if (request.tenantContext) {
+    request.userContext = {
+      userId: request.tenantContext.keyId, // Use keyId as userId for API key auth
+      tenantId: request.tenantContext.tenantId,
+      role: request.tenantContext.keyRole as 'admin' | 'member' | 'guest',
+    }
+  }
+}
 
 const UsageQuerySchema = z.object({
   period: z.enum(['daily', 'weekly', 'monthly']).default('daily'),
+})
+
+const UsageBreakdownQuerySchema = z.object({
+  period: z.enum(['daily', 'weekly', 'monthly']).default('weekly'),
+  provider: z.string().optional(),
 })
 
 export async function usageRoutes(app: FastifyInstance) {
@@ -38,6 +81,7 @@ export async function usageRoutes(app: FastifyInstance) {
   }>(
     '/v1/usage',
     {
+      preHandler: hybridAuthMiddleware,
       schema: {
         tags: ['Usage'],
         summary: 'Get usage summary',
@@ -47,7 +91,7 @@ export async function usageRoutes(app: FastifyInstance) {
     },
     async (request, reply) => {
       const period = request.query.period || 'daily'
-      const { tenantId } = request.tenantContext!
+      const tenantId = request.userContext!.tenantId
 
       // Calculate date range based on period
       const now = new Date()
@@ -142,20 +186,51 @@ export async function usageRoutes(app: FastifyInstance) {
    * 
    * Returns usage breakdown by model and provider for the authenticated tenant.
    */
-  app.get<{ Reply: UsageBreakdown }>(
+  app.get<{ 
+    Querystring: z.infer<typeof UsageBreakdownQuerySchema>
+    Reply: UsageBreakdown 
+  }>(
     '/v1/usage/breakdown',
     {
+      preHandler: hybridAuthMiddleware,
       schema: {
         tags: ['Usage'],
         summary: 'Get usage breakdown',
         description: 'Returns usage data grouped by model and provider for the authenticated tenant',
         security: [{ BearerAuth: [] }],
+        querystring: UsageBreakdownQuerySchema,
       },
     },
     async (request, reply) => {
-      const { tenantId } = request.tenantContext!
+      const tenantId = request.userContext!.tenantId
+      const queryParams = UsageBreakdownQuerySchema.parse(request.query)
+      const { period, provider } = queryParams
+
+      // Calculate date range based on period
+      const now = new Date()
+      const startDate = new Date()
+
+      switch (period) {
+        case 'daily':
+          startDate.setDate(now.getDate() - 7) // Last 7 days
+          break
+        case 'weekly':
+          startDate.setDate(now.getDate() - 28) // Last 4 weeks
+          break
+        case 'monthly':
+          startDate.setMonth(now.getMonth() - 6) // Last 6 months
+          break
+      }
+
+      startDate.setHours(0, 0, 0, 0)
 
       // Query breakdown by model and provider
+      const whereConditions = [
+        eq(usageLogs.tenantId, tenantId),
+        gte(usageLogs.createdAt, startDate),
+        ...(provider && provider !== 'all' ? [eq(usageLogs.provider, provider)] : []),
+      ]
+
       const breakdownResult = await db
         .select({
           model: usageLogs.model,
@@ -166,7 +241,7 @@ export async function usageRoutes(app: FastifyInstance) {
           outputTokens: sql<number>`COALESCE(SUM(${usageLogs.outputTokens}), 0)`,
         })
         .from(usageLogs)
-        .where(eq(usageLogs.tenantId, tenantId))
+        .where(and(...whereConditions))
         .groupBy(usageLogs.model, usageLogs.provider)
         .orderBy(desc(sql`SUM(CAST(${usageLogs.costUsd} AS NUMERIC))`))
 

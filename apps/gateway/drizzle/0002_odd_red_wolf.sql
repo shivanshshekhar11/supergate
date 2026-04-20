@@ -1,0 +1,1 @@
+ALTER TABLE "usage_logs" ADD COLUMN "status_code" integer DEFAULT 200 NOT NULL;

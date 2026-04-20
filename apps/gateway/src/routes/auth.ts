@@ -6,10 +6,14 @@ import {
   LoginRequestSchema,
   AuthResponseSchema,
   MeResponseSchema,
+  UpdateProfileRequestSchema,
+  UpdateTenantRequestSchema,
   type RegisterRequest,
   type LoginRequest,
   type AuthResponse,
   type MeResponse,
+  type UpdateProfileRequest,
+  type UpdateTenantRequest,
 } from '@llm-gateway/schemas'
 import { db } from '../db/client'
 import { users, tenants, userTenants } from '../db/schema'
@@ -272,6 +276,114 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       }
 
       return reply.status(200).send(response)
+    }
+  )
+
+  /**
+   * PATCH /v1/auth/profile
+   * Update current user's name, email, and/or password.
+   * Requires JWT authentication.
+   */
+  app.patch<{ Body: UpdateProfileRequest }>(
+    '/v1/auth/profile',
+    {
+      onRequest: dashboardAuthMiddleware,
+      schema: {
+        body: UpdateProfileRequestSchema,
+        tags: ['Auth'],
+        summary: 'Update user profile',
+        description: 'Update name, email, and/or password for the authenticated user.',
+        security: [{ BearerAuth: [] }],
+      },
+    },
+    async (request, reply) => {
+      const { userId } = request.userContext!
+      const { name, email, currentPassword, newPassword } = request.body
+
+      const user = await db.query.users.findFirst({ where: eq(users.id, userId) })
+      if (!user) return reply.status(404).send({ error: { code: 'user_not_found', message: 'User not found' } } as any)
+
+      // Password change — verify current password first
+      if (newPassword) {
+        if (!currentPassword) {
+          return reply.status(400).send({ error: { code: 'current_password_required', message: 'Current password is required to set a new password' } } as any)
+        }
+        const valid = await bcrypt.compare(currentPassword, user.passwordHash)
+        if (!valid) {
+          return reply.status(400).send({ error: { code: 'invalid_current_password', message: 'Current password is incorrect' } } as any)
+        }
+      }
+
+      // Check email uniqueness if changing
+      if (email && email !== user.email) {
+        const existing = await db.query.users.findFirst({ where: eq(users.email, email) })
+        if (existing) {
+          return reply.status(409).send({ error: { code: 'email_already_exists', message: 'This email is already in use' } } as any)
+        }
+      }
+
+      const updates: Partial<typeof users.$inferInsert> = {}
+      if (name)        updates.name          = name
+      if (email)       updates.email         = email
+      if (newPassword) updates.passwordHash  = await bcrypt.hash(newPassword, 10)
+
+      if (Object.keys(updates).length === 0) {
+        return reply.status(400).send({ error: { code: 'no_changes', message: 'No fields to update' } } as any)
+      }
+
+      const [updated] = await db.update(users).set(updates).where(eq(users.id, userId)).returning()
+
+      return reply.status(200).send({
+        id:        updated.id,
+        email:     updated.email,
+        name:      updated.name,
+        createdAt: updated.createdAt.toISOString(),
+      })
+    }
+  )
+
+  /**
+   * PATCH /v1/auth/tenant
+   * Update the current user's primary tenant name (admin only).
+   * Requires JWT authentication.
+   */
+  app.patch<{ Body: UpdateTenantRequest }>(
+    '/v1/auth/tenant',
+    {
+      onRequest: dashboardAuthMiddleware,
+      schema: {
+        body: UpdateTenantRequestSchema,
+        tags: ['Auth'],
+        summary: 'Update tenant name',
+        description: 'Update the name of the authenticated user\'s primary tenant. Admin role required.',
+        security: [{ BearerAuth: [] }],
+      },
+    },
+    async (request, reply) => {
+      const { userId, tenantId, role } = request.userContext!
+
+      if (role !== 'admin') {
+        return reply.status(403).send({ error: { code: 'insufficient_permissions', message: 'Admin role required' } } as any)
+      }
+
+      const { name } = request.body
+
+      const [updated] = await db
+        .update(tenants)
+        .set({ name })
+        .where(eq(tenants.id, tenantId))
+        .returning()
+
+      if (!updated) {
+        return reply.status(404).send({ error: { code: 'tenant_not_found', message: 'Tenant not found' } } as any)
+      }
+
+      return reply.status(200).send({
+        id:        updated.id,
+        name:      updated.name,
+        tier:      updated.tier,
+        createdAt: updated.createdAt.toISOString(),
+      })
     }
   )
 }

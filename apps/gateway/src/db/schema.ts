@@ -61,6 +61,7 @@ export const usageLogs = pgTable(
     costUsd: numeric('cost_usd', { precision: 12, scale: 8 }).notNull(),
     latencyMs: integer('latency_ms'),
     cached: boolean('cached').default(false).notNull(),
+    statusCode: integer('status_code').notNull().default(200),
     requestId: text('request_id'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },

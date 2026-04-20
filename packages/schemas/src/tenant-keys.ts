@@ -3,7 +3,7 @@ import { z } from 'zod'
 /**
  * Supported LLM providers for BYOK
  */
-export const LLMProviderSchema = z.enum(['openai', 'anthropic'])
+export const LLMProviderSchema = z.enum(['openai', 'anthropic', 'google', 'cohere', 'mistral'])
 
 /**
  * Request to store a tenant's LLM API key (BYOK)

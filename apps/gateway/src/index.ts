@@ -1,7 +1,6 @@
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import swagger from '@fastify/swagger'
-import swaggerUi from '@fastify/swagger-ui'
 import { fastifyZodOpenApiPlugin, fastifyZodOpenApiTransform, fastifyZodOpenApiTransformObject, serializerCompiler, validatorCompiler } from 'fastify-zod-openapi'
 import { env } from './config'
 import { healthRoutes } from './routes/health'
@@ -9,7 +8,10 @@ import { chatRoutes } from './routes/chat'
 import { keyRoutes } from './routes/keys'
 import { tenantKeyRoutes } from './routes/tenant-keys'
 import { usageRoutes } from './routes/usage'
+import { usageLogsRoutes } from './routes/usage-logs'
+import { usageChartRoutes } from './routes/usage-chart'
 import { cacheRoutes } from './routes/cache'
+import { playgroundRoutes } from './routes/playground'
 import { registerAuthRoutes } from './routes/auth'
 import { authMiddleware } from './middleware/auth'
 import { rateLimitMiddleware } from './middleware/rate-limit'
@@ -54,14 +56,23 @@ async function bootstrap() {
 
   // Add custom error handler for validation errors
   app.setErrorHandler((error: any, request, reply) => {
-    // Handle validation errors
+    // Handle validation errors — turn Fastify's raw validation array into a readable message
     if (error.validation) {
+      const details: Array<{ validation: string; message: string; path?: string[] }> = error.validation
+
+      // Build a single readable sentence from the first validation failure
+      const first = details[0]
+      const field = first?.path?.join('.') ?? 'field'
+      const readable = first?.message
+        ? `${field}: ${first.message}`
+        : 'Request validation failed'
+
       return reply.code(400).send({
         error: {
           code: 'validation_error',
-          message: error.message || 'Request validation failed',
+          message: readable,
           requestId: request.id,
-          details: error.validation,
+          details,
         },
       })
     }
@@ -92,7 +103,7 @@ async function bootstrap() {
   await app.register(swagger, {
     openapi: {
       info: {
-        title: 'LLM Gateway API',
+        title: 'Supergate API',
         description: 'Multi-tenant LLM proxy with semantic caching, rate limiting, and cost attribution',
         version: '1.0.0',
       },
@@ -126,15 +137,21 @@ async function bootstrap() {
     transformObject: fastifyZodOpenApiTransformObject,
   })
 
-  // Register Swagger UI
-  await app.register(swaggerUi, {
-    routePrefix: '/docs',
-    uiConfig: {
-      docExpansion: 'list',
-      deepLinking: true,
-    },
-    staticCSP: true,
-  })
+  // Register Scalar API Reference
+  await app.register(
+    await import('@scalar/fastify-api-reference').then((m) => m.default),
+    {
+      routePrefix: '/docs',
+      configuration: {
+        theme: 'purple',
+        layout: 'modern',
+        defaultHttpClient: {
+          targetKey: 'js',
+          clientKey: 'fetch',
+        },
+      },
+    }
+  )
 
   // Register global middleware
   // Order matters: auth → rate-limit → pii-mask → routes → usage-logger
@@ -147,25 +164,31 @@ async function bootstrap() {
   
   // Protected routes need auth + rate limiting
   app.addHook('onRequest', async (request, reply) => {
-    // Skip auth for health, docs, and auth endpoints
+    // Skip auth for health, docs, auth, usage, cache, tenant key, and playground endpoints
     if (
       request.url.startsWith('/health') ||
       request.url.startsWith('/docs') ||
-      request.url.startsWith('/v1/auth')
+      request.url.startsWith('/v1/auth') ||
+      request.url.startsWith('/v1/usage') ||
+      request.url.startsWith('/v1/cache') ||
+      request.url.startsWith('/v1/tenant') ||
+      request.url.startsWith('/v1/playground')
     ) {
       return
     }
-    
-    // Apply auth middleware
     await authMiddleware(request, reply)
   })
   
   app.addHook('preHandler', async (request, reply) => {
-    // Skip rate limiting for health, docs, and auth endpoints
+    // Skip rate limiting for health, docs, auth, usage, cache, tenant key, and playground endpoints
     if (
       request.url.startsWith('/health') ||
       request.url.startsWith('/docs') ||
-      request.url.startsWith('/v1/auth')
+      request.url.startsWith('/v1/auth') ||
+      request.url.startsWith('/v1/usage') ||
+      request.url.startsWith('/v1/cache') ||
+      request.url.startsWith('/v1/tenant') ||
+      request.url.startsWith('/v1/playground')
     ) {
       return
     }
@@ -185,11 +208,15 @@ async function bootstrap() {
   
   // Usage logger runs after response (fire-and-forget)
   app.addHook('onResponse', async (request, reply) => {
-    // Skip for health, docs, and auth endpoints
+    // Skip for health, docs, auth, usage, cache, tenant key, and playground endpoints
     if (
       request.url.startsWith('/health') ||
       request.url.startsWith('/docs') ||
-      request.url.startsWith('/v1/auth')
+      request.url.startsWith('/v1/auth') ||
+      request.url.startsWith('/v1/usage') ||
+      request.url.startsWith('/v1/cache') ||
+      request.url.startsWith('/v1/tenant') ||
+      request.url.startsWith('/v1/playground')
     ) {
       return
     }
@@ -209,7 +236,10 @@ async function bootstrap() {
   await app.register(keyRoutes)
   await app.register(tenantKeyRoutes)
   await app.register(usageRoutes)
+  await app.register(usageLogsRoutes)
+  await app.register(usageChartRoutes)
   await app.register(cacheRoutes)
+  await app.register(playgroundRoutes)
 
   // Graceful shutdown
   const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM']

@@ -531,10 +531,13 @@ describe('Usage Logger Middleware', () => {
         .where(eq(usageLogs.tenantId, testTenantId))
 
       expect(logs).toHaveLength(3)
-      expect(logs.map(l => l.model)).toEqual([
-        'gpt-4o-mini',
+      
+      // Check that all models are present (order-agnostic since async operations)
+      const models = logs.map(l => l.model).sort()
+      expect(models).toEqual([
         'claude-3-haiku-20240307',
         'gpt-4o',
+        'gpt-4o-mini',
       ])
     })
   })

@@ -67,3 +67,31 @@ export const MeResponseSchema = z.object({
 })
 
 export type MeResponse = z.infer<typeof MeResponseSchema>
+
+/**
+ * Update profile request schema
+ */
+export const UpdateProfileRequestSchema = z.object({
+  name: z.string().min(1, 'Name is required').optional(),
+  email: z.string().email('Invalid email address').optional(),
+  currentPassword: z.string().optional(),
+  newPassword: z.string().min(8, 'Password must be at least 8 characters').optional(),
+}).refine(
+  (data) => {
+    // If newPassword is provided, currentPassword must also be provided
+    if (data.newPassword && !data.currentPassword) return false
+    return true
+  },
+  { message: 'Current password is required to set a new password', path: ['currentPassword'] }
+)
+
+export type UpdateProfileRequest = z.infer<typeof UpdateProfileRequestSchema>
+
+/**
+ * Update tenant request schema
+ */
+export const UpdateTenantRequestSchema = z.object({
+  name: z.string().min(1, 'Tenant name is required'),
+})
+
+export type UpdateTenantRequest = z.infer<typeof UpdateTenantRequestSchema>
