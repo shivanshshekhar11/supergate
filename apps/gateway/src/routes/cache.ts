@@ -1,7 +1,7 @@
-/**
+﻿/**
  * Cache Analytics Routes
  *
- * GET /v1/cache/stats — tenant-scoped cache performance metrics.
+ * GET /v1/cache/stats â€” tenant-scoped cache performance metrics.
  * Used by the Swagger docs and available for external API consumers.
  * Dashboard derives cache hit rate from /v1/usage/chart buckets instead
  * (which are provider + time-range filtered), but this endpoint remains
@@ -13,7 +13,6 @@ import { z } from 'zod'
 import { db } from '../db/client'
 import { cacheEntries, usageLogs } from '../db/schema'
 import { sql, and, gte, eq, desc } from 'drizzle-orm'
-import { dashboardAuthMiddleware } from '../middleware/dashboard-auth'
 
 const CacheStatsResponseSchema = z.object({
   totalEntries:    z.number(),
@@ -38,7 +37,7 @@ export async function cacheRoutes(app: FastifyInstance) {
   app.get<{ Reply: z.infer<typeof CacheStatsResponseSchema> }>(
     '/v1/cache/stats',
     {
-      preHandler: dashboardAuthMiddleware,
+      
       schema: {
         tags: ['Cache'],
         summary: 'Get cache statistics',
@@ -47,7 +46,7 @@ export async function cacheRoutes(app: FastifyInstance) {
       },
     },
     async (request, reply) => {
-      const tenantId = request.userContext!.tenantId
+      const tenantId = request.tenantContext!.tenantId
 
       const cacheStatsResult = await db
         .select({
@@ -107,3 +106,4 @@ export async function cacheRoutes(app: FastifyInstance) {
     }
   )
 }
+

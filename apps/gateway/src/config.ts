@@ -51,6 +51,9 @@ export const env = createEnv({
 
     // JWT Secret (for dashboard authentication)
     JWT_SECRET: z.string().min(32),
+
+    // CORS — comma-separated list of allowed origins (leave unset to allow all)
+    CORS_ORIGINS: z.string().optional(),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,

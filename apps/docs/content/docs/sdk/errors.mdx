@@ -1,0 +1,82 @@
+---
+title: Error handling
+description: Typed error classes for every gateway failure mode.
+---
+
+All SDK errors extend `SupergateError`, so you can catch the base class or specific subtypes.
+
+## Error hierarchy
+
+```
+SupergateError
+├── AuthError          (401)
+├── PermissionError    (403)
+├── RateLimitError     (429)
+├── ProviderError      (503)
+└── ValidationError    (400)
+```
+
+## Usage
+
+```typescript
+import {
+  SupergateClient,
+  SupergateError,
+  AuthError,
+  PermissionError,
+  RateLimitError,
+  ProviderError,
+  ValidationError,
+} from '@supergate/sdk'
+
+try {
+  await client.chat.completions.create({ ... })
+} catch (err) {
+  if (err instanceof RateLimitError) {
+    // Retry after the window resets
+    await sleep((err.retryAfter ?? 60) * 1000)
+    // retry...
+  } else if (err instanceof AuthError) {
+    console.error('Invalid or revoked API key')
+  } else if (err instanceof PermissionError) {
+    console.error('Insufficient permissions — check your key role or BYOK config')
+  } else if (err instanceof ProviderError) {
+    console.error('Provider circuit breaker is open — try again shortly')
+  } else if (err instanceof ValidationError) {
+    console.error('Request validation failed:', err.message)
+  } else if (err instanceof SupergateError) {
+    console.error(`Gateway error ${err.status} (${err.code}): ${err.message}`)
+    console.error('Request ID:', err.requestId)
+  }
+}
+```
+
+## Error properties
+
+All errors expose:
+
+| Property | Type | Description |
+|---|---|---|
+| `message` | `string` | Human-readable error message |
+| `status` | `number` | HTTP status code |
+| `code` | `string` | Machine-readable error code |
+| `requestId` | `string \| undefined` | Gateway request ID for debugging |
+
+`RateLimitError` additionally exposes:
+
+| Property | Type | Description |
+|---|---|---|
+| `retryAfter` | `number \| undefined` | Seconds until the rate limit window resets |
+
+## Error codes
+
+| Code | Class | Description |
+|---|---|---|
+| `unauthorized` | `AuthError` | Missing or invalid API key |
+| `forbidden` | `PermissionError` | Valid key, insufficient role |
+| `byok_required` | `PermissionError` | Enterprise-independent tier requires BYOK |
+| `rate_limit_exceeded` | `RateLimitError` | TPM or RPM limit exceeded |
+| `provider_unavailable` | `ProviderError` | Circuit breaker open |
+| `invalid_model` | `ValidationError` | Unknown model name |
+| `validation_error` | `ValidationError` | Request body failed schema validation |
+| `internal_error` | `SupergateError` | Unexpected gateway error |

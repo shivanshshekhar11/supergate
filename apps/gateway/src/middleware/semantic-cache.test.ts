@@ -54,6 +54,7 @@ describe('Semantic Cache Middleware', () => {
         tenantTier: 'pro',
         keyId: 'key-123',
         keyRole: 'user',
+        authMethod: 'api_key' as const,
       },
       body: {
         model: mockModel,

@@ -1,0 +1,70 @@
+---
+title: client.chat
+description: OpenAI-compatible chat completions through the gateway.
+---
+
+`client.chat.completions.create()` delegates to the OpenAI SDK with the gateway as `baseURL`. All OpenAI SDK features work transparently — streaming, function calling, structured outputs.
+
+## Non-streaming
+
+```typescript
+const response = await client.chat.completions.create({
+  model:       'gpt-4o',
+  messages:    [{ role: 'user', content: 'Explain semantic caching.' }],
+  temperature: 0.7,
+  max_tokens:  1024,
+})
+
+console.log(response.choices[0].message.content)
+console.log(response.usage.total_tokens)
+```
+
+## Streaming
+
+Requires `openai` to be installed.
+
+```typescript
+const stream = await client.chat.completions.create({
+  model:    'gpt-4o',
+  messages: [{ role: 'user', content: 'Write a haiku.' }],
+  stream:   true,
+})
+
+for await (const chunk of stream) {
+  process.stdout.write(chunk.choices[0]?.delta?.content ?? '')
+}
+```
+
+## With system prompt
+
+```typescript
+const response = await client.chat.completions.create({
+  model: 'claude-3-5-sonnet-20241022',
+  messages: [
+    { role: 'system',  content: 'You are a concise technical writer.' },
+    { role: 'user',    content: 'What is a circuit breaker?' },
+  ],
+})
+```
+
+## Response headers
+
+The gateway adds metadata headers to every response. When using the SDK directly these are not surfaced — use the raw HTTP endpoint if you need them.
+
+| Header | Value |
+|---|---|
+| `X-Cache` | `HIT` or `MISS` |
+| `X-Latency-Ms` | Total gateway latency |
+| `X-Request-ID` | Unique request ID |
+
+## Without the openai package
+
+If `openai` is not installed, the SDK falls back to a direct fetch call. Streaming is not available in this mode.
+
+```typescript
+// Works without openai installed — non-streaming only
+const response = await client.chat.completions.create({
+  model:    'gpt-4o-mini',
+  messages: [{ role: 'user', content: 'Hello' }],
+})
+```

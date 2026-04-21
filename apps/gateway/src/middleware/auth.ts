@@ -1,198 +1,198 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { db } from '../db/client'
 import { apiKeys, tenants } from '../db/schema'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, sql } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
-import { sql } from 'drizzle-orm'
+import { verifyToken } from '../lib/jwt'
 
 /**
- * Tenant context attached to request after authentication
+ * Tenant context attached to every authenticated request.
+ *
+ * Populated by authMiddleware regardless of whether the caller used a
+ * gateway API key (gw_...) or a dashboard JWT.  All route handlers read
+ * from this single shape — no more userContext / tenantContext split.
  */
 export interface TenantContext {
-  tenantId: string
+  tenantId:   string
   tenantName: string
   tenantTier: string
-  keyId: string
-  keyRole: string
+  keyId:      string   // API key UUID  OR  JWT userId
+  keyRole:    string   // 'admin' | 'user' | 'viewer'  OR  'admin' | 'member' | 'guest'
+  authMethod: 'api_key' | 'jwt'
 }
 
-/**
- * Extend Fastify request type to include tenant context
- */
 declare module 'fastify' {
   interface FastifyRequest {
     tenantContext?: TenantContext
   }
 }
 
+// ── helpers ───────────────────────────────────────────────────────────────────
+
+function isJwt(token: string): boolean {
+  // JWTs are three base64url segments separated by dots
+  const parts = token.split('.')
+  return parts.length === 3
+}
+
+function unauthorized(request: FastifyRequest, reply: FastifyReply, code: string, message: string) {
+  return reply.code(401).send({
+    error: { code, message, requestId: request.id },
+  })
+}
+
+// ── main middleware ───────────────────────────────────────────────────────────
+
 /**
- * Authentication middleware
- * 
+ * Unified authentication middleware.
+ *
+ * Accepts both gateway API keys (gw_...) and dashboard JWTs in the same
+ * Authorization: Bearer header.  After this middleware runs, every route
+ * handler can read request.tenantContext regardless of auth method.
+ *
  * Flow:
- * 1. Extract Bearer token from Authorization header
- * 2. Validate token format (must start with 'gw_')
- * 3. Find API key by prefix (fast path)
- * 4. Verify key with bcrypt (secure comparison)
- * 5. Check if key is revoked
- * 6. Attach tenant context to request
- * 7. Set PostgreSQL session variable for Row Level Security
- * 8. Update last_used timestamp (fire-and-forget)
+ *   Bearer gw_...  → bcrypt API key verification → tenantContext
+ *   Bearer eyJ...  → JWT verification → tenant DB lookup → tenantContext
  */
 export async function authMiddleware(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
   const authHeader = request.headers.authorization
 
-  // Check for Authorization header
   if (!authHeader) {
-    return reply.code(401).send({
-      error: {
-        code: 'missing_authorization',
-        message: 'Authorization header is required',
-        requestId: request.id,
-      },
-    })
+    return unauthorized(request, reply, 'missing_authorization', 'Authorization header is required')
   }
 
-  // Extract Bearer token
   const parts = authHeader.split(' ')
   if (parts.length !== 2 || parts[0] !== 'Bearer') {
-    return reply.code(401).send({
-      error: {
-        code: 'invalid_authorization_format',
-        message: 'Authorization header must be in format: Bearer <token>',
-        requestId: request.id,
-      },
-    })
+    return unauthorized(request, reply, 'invalid_authorization_format', 'Authorization header must be in format: Bearer <token>')
   }
 
-  const rawKey = parts[1]
-
-  // Validate key format
-  if (!rawKey.startsWith('gw_') || rawKey.length < 20) {
-    return reply.code(401).send({
-      error: {
-        code: 'invalid_api_key_format',
-        message: 'API key must start with "gw_" and be at least 20 characters',
-        requestId: request.id,
-      },
-    })
-  }
-
-  // Extract key prefix for fast lookup
-  const keyPrefix = rawKey.substring(0, 9) // "gw_abc123"
+  const token = parts[1]
 
   try {
-    // Find API keys with matching prefix (fast path)
-    const candidates = await db
-      .select({
-        id: apiKeys.id,
-        tenantId: apiKeys.tenantId,
-        keyHash: apiKeys.keyHash,
-        role: apiKeys.role,
-        revoked: apiKeys.revoked,
-        tenantName: tenants.name,
-        tenantTier: tenants.tier,
-      })
-      .from(apiKeys)
-      .innerJoin(tenants, eq(apiKeys.tenantId, tenants.id))
-      .where(
-        and(
-          eq(apiKeys.keyPrefix, keyPrefix),
-          eq(apiKeys.revoked, false)
-        )
-      )
-
-    if (candidates.length === 0) {
-      return reply.code(401).send({
-        error: {
-          code: 'invalid_api_key',
-          message: 'Invalid or revoked API key',
-          requestId: request.id,
-        },
-      })
+    if (isJwt(token)) {
+      await handleJwt(token, request, reply)
+    } else {
+      await handleApiKey(token, request, reply)
     }
-
-    // Verify key with bcrypt (secure comparison)
-    let matchedKey: typeof candidates[0] | null = null
-
-    for (const candidate of candidates) {
-      const isValid = await bcrypt.compare(rawKey, candidate.keyHash)
-      if (isValid) {
-        matchedKey = candidate
-        break
-      }
-    }
-
-    if (!matchedKey) {
-      return reply.code(401).send({
-        error: {
-          code: 'invalid_api_key',
-          message: 'Invalid or revoked API key',
-          requestId: request.id,
-        },
-      })
-    }
-
-    // Attach tenant context to request
-    request.tenantContext = {
-      tenantId: matchedKey.tenantId,
-      tenantName: matchedKey.tenantName,
-      tenantTier: matchedKey.tenantTier,
-      keyId: matchedKey.id,
-      keyRole: matchedKey.role,
-    }
-
-    // Set PostgreSQL session variable for Row Level Security (RLS)
-    // This ensures queries automatically filter by tenant_id
-    // Note: SET LOCAL doesn't support parameterized queries, so we use raw SQL
-    // The tenantId is a UUID from our database, so it's safe from injection
-    await db.execute(sql.raw(`SET LOCAL app.tenant_id = '${matchedKey.tenantId}'`))
-
-    // Update last_used timestamp (fire-and-forget)
-    // Don't await - logging failure should never block the request
-    db.update(apiKeys)
-      .set({ lastUsed: new Date() })
-      .where(eq(apiKeys.id, matchedKey.id))
-      .execute()
-      .catch((err) => {
-        console.error('[Auth] Failed to update last_used:', err)
-      })
-
-    // Log successful authentication
-    console.log(
-      `[Auth] Authenticated: tenant=${matchedKey.tenantName} (${matchedKey.tenantId}), ` +
-      `tier=${matchedKey.tenantTier}, role=${matchedKey.role}`
-    )
   } catch (error) {
-    console.error('[Auth] Authentication error:', error)
+    console.error('[Auth] Unexpected error:', error)
     return reply.code(500).send({
-      error: {
-        code: 'authentication_error',
-        message: 'An error occurred during authentication',
-        requestId: request.id,
-      },
+      error: { code: 'authentication_error', message: 'An error occurred during authentication', requestId: request.id },
     })
   }
 }
 
+// ── JWT path ──────────────────────────────────────────────────────────────────
+
+async function handleJwt(
+  token: string,
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  let payload: ReturnType<typeof verifyToken>
+  try {
+    payload = verifyToken(token)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Invalid token'
+    return unauthorized(request, reply, 'invalid_token', msg)
+  }
+
+  // Fetch tenant name + tier so tenantContext is fully populated
+  const [tenant] = await db
+    .select({ name: tenants.name, tier: tenants.tier })
+    .from(tenants)
+    .where(eq(tenants.id, payload.tenantId))
+    .limit(1)
+
+  if (!tenant) {
+    return unauthorized(request, reply, 'tenant_not_found', 'Tenant associated with this token no longer exists')
+  }
+
+  // Set RLS session variable
+  await db.execute(sql.raw(`SET LOCAL app.tenant_id = '${payload.tenantId}'`))
+
+  request.tenantContext = {
+    tenantId:   payload.tenantId,
+    tenantName: tenant.name,
+    tenantTier: tenant.tier,
+    keyId:      payload.userId,
+    keyRole:    payload.role,   // 'admin' | 'member' | 'guest'
+    authMethod: 'jwt',
+  }
+}
+
+// ── API key path ──────────────────────────────────────────────────────────────
+
+async function handleApiKey(
+  rawKey: string,
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  if (!rawKey.startsWith('gw_') || rawKey.length < 20) {
+    return unauthorized(request, reply, 'invalid_api_key_format', 'API key must start with "gw_" and be at least 20 characters')
+  }
+
+  const keyPrefix = rawKey.substring(0, 9)
+
+  const candidates = await db
+    .select({
+      id:         apiKeys.id,
+      tenantId:   apiKeys.tenantId,
+      keyHash:    apiKeys.keyHash,
+      role:       apiKeys.role,
+      revoked:    apiKeys.revoked,
+      tenantName: tenants.name,
+      tenantTier: tenants.tier,
+    })
+    .from(apiKeys)
+    .innerJoin(tenants, eq(apiKeys.tenantId, tenants.id))
+    .where(and(eq(apiKeys.keyPrefix, keyPrefix), eq(apiKeys.revoked, false)))
+
+  if (candidates.length === 0) {
+    return unauthorized(request, reply, 'invalid_api_key', 'Invalid or revoked API key')
+  }
+
+  let matched: typeof candidates[0] | null = null
+  for (const c of candidates) {
+    if (await bcrypt.compare(rawKey, c.keyHash)) { matched = c; break }
+  }
+
+  if (!matched) {
+    return unauthorized(request, reply, 'invalid_api_key', 'Invalid or revoked API key')
+  }
+
+  await db.execute(sql.raw(`SET LOCAL app.tenant_id = '${matched.tenantId}'`))
+
+  // Fire-and-forget last_used update
+  db.update(apiKeys).set({ lastUsed: new Date() }).where(eq(apiKeys.id, matched.id))
+    .execute().catch(err => console.error('[Auth] Failed to update last_used:', err))
+
+  request.tenantContext = {
+    tenantId:   matched.tenantId,
+    tenantName: matched.tenantName,
+    tenantTier: matched.tenantTier,
+    keyId:      matched.id,
+    keyRole:    matched.role,   // 'admin' | 'user' | 'viewer'
+    authMethod: 'api_key',
+  }
+}
+
+// ── RBAC helper ───────────────────────────────────────────────────────────────
+
 /**
- * Role-based access control decorator
- * Use this to restrict routes to specific roles
+ * Route preHandler that enforces role requirements.
+ * Works for both API key roles (admin/user/viewer) and JWT roles (admin/member/guest).
  */
 export function requireRole(...allowedRoles: string[]) {
   return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
     if (!request.tenantContext) {
       return reply.code(401).send({
-        error: {
-          code: 'not_authenticated',
-          message: 'Authentication required',
-          requestId: request.id,
-        },
+        error: { code: 'not_authenticated', message: 'Authentication required', requestId: request.id },
       })
     }
-
     if (!allowedRoles.includes(request.tenantContext.keyRole)) {
       return reply.code(403).send({
         error: {

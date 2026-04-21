@@ -1,0 +1,76 @@
+---
+title: client.keys
+description: Create, list, and revoke gateway API keys.
+---
+
+Manage gateway API keys for your tenant. The SDK uses your existing admin API key to authenticate these calls.
+
+You can also manage keys through the dashboard's **API Keys** page, which provides the same operations with a UI.
+
+## List keys
+
+```typescript
+const { keys } = await client.keys.list()
+
+keys.forEach(key => {
+  console.log(`${key.name} — ${key.keyPrefix}... — ${key.role} — revoked: ${key.revoked}`)
+})
+```
+
+Raw key values are never returned — only prefixes and metadata.
+
+## Create a key
+
+```typescript
+const newKey = await client.keys.create({
+  name: 'prod-service',
+  role: 'user',
+})
+
+console.log(newKey.key)  // gw_abc123... — shown once, store securely
+```
+
+<Callout type="warn">
+The raw key is returned exactly once. Store it in a secrets manager immediately.
+</Callout>
+
+### Options
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `name` | `string` | `'SDK key'` | Human-readable label |
+| `role` | `'admin' \| 'user' \| 'viewer'` | `'user'` | Permission level |
+
+### Roles
+
+| Role | Permissions |
+|---|---|
+| `admin` | Full access — create/revoke keys, manage BYOK, read usage |
+| `user` | Chat completions only |
+| `viewer` | Read-only usage data |
+
+## Revoke a key
+
+```typescript
+await client.keys.revoke(keyId)
+```
+
+Revoked keys are rejected immediately on the next request. This operation is irreversible.
+
+## Types
+
+```typescript
+interface KeyMetadata {
+  id:        string
+  keyPrefix: string
+  role:      'admin' | 'user' | 'viewer'
+  name:      string | null
+  revoked:   boolean
+  lastUsed:  string | null
+  createdAt: string
+}
+
+interface CreatedKey extends KeyMetadata {
+  key: string  // raw value — shown once
+}
+```

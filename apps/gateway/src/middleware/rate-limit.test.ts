@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Rate Limiting Middleware Unit Tests
  * 
  * Priority: HIGH
@@ -278,6 +278,7 @@ function createMockRequest(
       tenantTier,
       keyId: 'test-key-id',
       keyRole: 'admin',
+        authMethod: 'api_key' as const,
     },
   } as any
 }
@@ -307,3 +308,4 @@ function createMockReply(): FastifyReply {
 function getHeaderValue(reply: any, headerName: string): number {
   return reply._headers.get(headerName)
 }
+

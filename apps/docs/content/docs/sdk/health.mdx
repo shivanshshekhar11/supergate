@@ -1,0 +1,54 @@
+---
+title: client.health
+description: Check gateway and provider health including circuit breaker states.
+---
+
+```typescript
+const health = await client.health.get()
+
+console.log(health.status)  // 'healthy' | 'degraded'
+console.log(`Uptime: ${health.uptime}s`)
+
+health.providers?.forEach(p => {
+  console.log(`${p.name}: ${p.circuitBreaker.state}`)
+  // openai: closed
+  // anthropic: closed
+})
+```
+
+<Callout>
+This endpoint does not require authentication — it is publicly accessible.
+</Callout>
+
+## Response shape
+
+```typescript
+interface HealthResponse {
+  status:    'healthy' | 'degraded'
+  uptime:    number
+  timestamp: string
+  services: {
+    database: { status: 'up' | 'down'; latencyMs: number }
+    redis:    { status: 'up' | 'down'; latencyMs: number }
+  }
+  providers?: Array<{
+    name:           string
+    circuitBreaker: {
+      state:       'closed' | 'open' | 'half-open'
+      failures:    number
+      lastFailure: string | null
+      nextRetry:   string | null
+    }
+  }>
+}
+```
+
+## Circuit breaker states
+
+| State | Meaning |
+|---|---|
+| `closed` | Normal operation |
+| `open` | Provider unavailable — requests rejected with 503 |
+| `half-open` | Testing recovery — one probe request allowed |
+
+The circuit opens after 5 consecutive failures and resets after 30 seconds.

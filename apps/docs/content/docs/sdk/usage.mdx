@@ -1,0 +1,97 @@
+---
+title: client.usage
+description: Query cost, token counts, and request history for your tenant.
+---
+
+## Summary
+
+Aggregated totals for a time period.
+
+```typescript
+const summary = await client.usage.getSummary({ period: 'weekly' })
+
+console.log(`$${summary.totalCostUsd.toFixed(4)} spent this week`)
+console.log(`${summary.totalRequests} requests`)
+console.log(`${(summary.cacheHitRate * 100).toFixed(1)}% cache hit rate`)
+console.log(`${summary.avgLatencyMs}ms average latency`)
+```
+
+### Options
+
+| Option | Values | Default |
+|---|---|---|
+| `period` | `'daily'` · `'weekly'` · `'monthly'` | `'daily'` |
+
+Period mapping:
+- `daily` → last 7 days
+- `weekly` → last 28 days
+- `monthly` → last 6 months
+
+## Breakdown
+
+Usage grouped by model and provider.
+
+```typescript
+const breakdown = await client.usage.getBreakdown({ period: 'weekly' })
+
+breakdown.forEach(b => {
+  console.log(`${b.model} (${b.provider}): ${b.requests} requests, $${b.costUsd.toFixed(4)}`)
+})
+```
+
+### Options
+
+| Option | Values | Default |
+|---|---|---|
+| `period` | `'daily'` · `'weekly'` · `'monthly'` | `'weekly'` |
+| `provider` | provider name | all providers |
+
+## Chart data
+
+Pre-bucketed data for visualisation.
+
+```typescript
+const chart = await client.usage.getChart({ timeRange: '7d' })
+
+chart.buckets.forEach(b => {
+  console.log(`${b.label}: ${b.requests} requests, ${b.cacheHits} cache hits, $${b.costUsd.toFixed(4)}`)
+})
+```
+
+### Options
+
+| Option | Values | Buckets |
+|---|---|---|
+| `timeRange: '24h'` | Last 24 hours | 12 × 2-hour buckets |
+| `timeRange: '7d'` | Last 7 days | 7 daily buckets |
+| `timeRange: '30d'` | Last 30 days | 30 daily buckets |
+
+## Logs
+
+Paginated request logs with filters.
+
+```typescript
+const logs = await client.usage.getLogs({
+  timeRange: '7d',
+  provider:  'openai',
+  pageSize:  20,
+  page:      1,
+})
+
+console.log(`${logs.total} total logs`)
+logs.data.forEach(log => {
+  const latency = log.cached ? 'CACHE HIT' : `${log.latencyMs}ms`
+  console.log(`${log.model} — ${latency} — $${log.costUsd.toFixed(4)}`)
+})
+```
+
+### Options
+
+| Option | Type | Description |
+|---|---|---|
+| `timeRange` | `'24h'` · `'7d'` · `'30d'` | Time window |
+| `provider` | `string` | Filter by provider |
+| `model` | `string` | Filter by model |
+| `status` | `number` | Filter by HTTP status code |
+| `page` | `number` | Page number (1-indexed) |
+| `pageSize` | `number` | Results per page (max 100) |

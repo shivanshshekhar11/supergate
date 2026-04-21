@@ -1,0 +1,41 @@
+# Dependencies — reinstalled inside Docker
+node_modules
+**/node_modules
+
+# Build outputs — rebuilt inside Docker
+dist
+.next
+out
+build
+**/.turbo
+
+# Environment files — injected at runtime
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+
+# Dev tools
+.git
+.gitignore
+.vscode
+.idea
+*.swp
+*.swo
+.kiro
+
+# Test artifacts
+coverage
+**/*.test.ts
+**/*.spec.ts
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Turbo cache
+.turbo

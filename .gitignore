@@ -44,3 +44,5 @@ coverage/
 # Documentation - exclude all .md files except README.md
 *.md
 !README.md
+!CHANGELOG.md
+!plan.md

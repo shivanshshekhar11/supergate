@@ -1,0 +1,19 @@
+{
+  "title": "Supergate",
+  "pages": [
+    "index",
+    "quickstart",
+    "authentication",
+    "rate-limiting",
+    "semantic-cache",
+    "providers",
+    "---SDK---",
+    "sdk/index",
+    "sdk/chat",
+    "sdk/keys",
+    "sdk/tenant-keys",
+    "sdk/usage",
+    "sdk/health",
+    "sdk/errors"
+  ]
+}

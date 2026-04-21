@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Semantic Cache Integration Tests
  * 
  * End-to-end tests for cache hit/miss scenarios with real database
@@ -51,7 +51,7 @@ describe('Semantic Cache Integration', () => {
     vi.mocked(embeddingsModule.clearEmbeddingCache).mockClear()
   })
 
-  describe('Cache MISS → Store → HIT flow', () => {
+  describe('Cache MISS â†’ Store â†’ HIT flow', () => {
     it('should miss cache, store entry, then hit on second request', async () => {
       const model = 'gpt-4o'
       const messages = [{ role: 'user', content: 'What is AI?' }]
@@ -429,6 +429,7 @@ function createMockRequest(
       tenantTier: 'pro',
       keyId: 'test-key',
       keyRole: 'user',
+        authMethod: 'api_key' as const,
     },
     body: {
       model,
@@ -444,3 +445,4 @@ function createMockReply(): any {
     send: vi.fn(),
   }
 }
+

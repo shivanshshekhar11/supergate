@@ -1,0 +1,160 @@
+---
+title: Authentication
+description: Gateway API keys, BYOK provider keys, and how the unified auth middleware works.
+---
+
+Supergate uses a single `Authorization: Bearer <token>` header for all requests. The gateway automatically detects whether the token is a gateway API key or a dashboard JWT and handles both transparently — no separate endpoints, no different headers.
+
+## How token detection works
+
+```
+Authorization: Bearer <token>
+                       │
+              ┌────────┴────────┐
+              │                 │
+         starts with        3-segment
+           "gw_"            base64url
+              │                 │
+         API key path       JWT path
+         (bcrypt verify)    (JWT verify)
+              │                 │
+              └────────┬────────┘
+                       │
+                 tenantContext
+              (same shape, always)
+```
+
+Every authenticated route reads from `request.tenantContext` regardless of how the caller authenticated.
+
+---
+
+## Gateway API keys
+
+For programmatic access — your application, scripts, CI pipelines, and the SDK.
+
+Keys follow the format `gw_<48 hex chars>`. They are hashed with bcrypt before storage — the raw value is shown exactly once at creation time.
+
+### Creating a key
+
+Via the dashboard (recommended): navigate to **API Keys** and click **New Key**.
+
+Via the API:
+
+```bash
+curl -X POST http://localhost:3000/v1/keys \
+  -H "Authorization: Bearer gw_your_admin_key" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "prod-service", "role": "user" }'
+```
+
+```json
+{
+  "id": "uuid",
+  "key": "gw_abc123...",
+  "keyPrefix": "gw_abc123",
+  "role": "user",
+  "name": "prod-service",
+  "createdAt": "2026-04-21T..."
+}
+```
+
+<Callout type="warn">
+The raw key is returned exactly once. Store it in a secrets manager — it cannot be recovered.
+</Callout>
+
+### Using a key
+
+Pass the key as a Bearer token on every request:
+
+```
+Authorization: Bearer gw_your_key_here
+```
+
+### API key roles
+
+| Role | Permissions |
+|---|---|
+| `admin` | Full access — create/revoke keys, manage BYOK, read usage |
+| `user` | Chat completions only |
+| `viewer` | Read-only usage data |
+
+### Revoking a key
+
+Via the dashboard: navigate to **API Keys**, find the key, click **Revoke**.
+
+Via the API:
+
+```bash
+curl -X DELETE http://localhost:3000/v1/keys/{id} \
+  -H "Authorization: Bearer gw_your_admin_key"
+```
+
+Revoked keys are rejected immediately on the next request.
+
+---
+
+## Dashboard JWT
+
+The dashboard authenticates users with JWT tokens issued on login. JWTs expire after 7 days.
+
+Unlike the old design, **dashboard JWTs are accepted on all gateway endpoints** — not just dashboard-specific ones. This means the dashboard can call `/v1/keys`, `/v1/usage`, `/v1/chat/completions`, and every other route using the same JWT it already has.
+
+### JWT roles
+
+| Role | Permissions |
+|---|---|
+| `admin` | Full access — create/revoke keys, manage BYOK, read usage |
+| `member` | Read usage, list keys, use playground |
+| `guest` | No access to sensitive endpoints |
+
+JWT roles map to the same `tenantContext.keyRole` field as API key roles, so route-level RBAC works identically for both auth methods.
+
+---
+
+## BYOK — Bring Your Own Key
+
+Configure your own LLM provider API keys. When set, they take precedence over the gateway's shared keys for that provider.
+
+This is useful for:
+- **Compliance** — your data never touches the gateway's provider credentials
+- **Cost isolation** — usage billed directly to your provider account
+- **Enterprise-independent tier** — BYOK is required, no gateway fallback
+
+### Adding a BYOK key
+
+Via the dashboard: navigate to **LLM Keys** and click **Add Key** for the provider.
+
+Via the API:
+
+```bash
+curl -X POST http://localhost:3000/v1/tenant/keys \
+  -H "Authorization: Bearer gw_your_admin_key" \
+  -H "Content-Type: application/json" \
+  -d '{ "provider": "openai", "apiKey": "sk-proj-..." }'
+```
+
+Keys are encrypted with AES-256-GCM before storage. The raw value is never returned.
+
+### Supported providers
+
+`openai` · `anthropic` · `google` · `cohere` · `mistral`
+
+### Rotating a key
+
+```bash
+curl -X PUT http://localhost:3000/v1/tenant/keys/openai \
+  -H "Authorization: Bearer gw_your_admin_key" \
+  -H "Content-Type: application/json" \
+  -d '{ "apiKey": "sk-proj-new..." }'
+```
+
+The old key is deactivated immediately.
+
+### Tier behavior
+
+| Tier | Gateway key fallback |
+|---|---|
+| `free` | ✅ Uses gateway key if no BYOK configured |
+| `pro` | ✅ Uses gateway key if no BYOK configured |
+| `enterprise` | ✅ Uses gateway key if no BYOK configured |
+| `enterprise-independent` | ❌ BYOK required — no fallback |

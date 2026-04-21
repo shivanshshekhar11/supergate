@@ -1,0 +1,42 @@
+---
+title: Introduction
+description: Supergate is a multi-tenant LLM gateway with semantic caching, rate limiting, and cost attribution.
+---
+
+Supergate sits in front of OpenAI, Anthropic, Google, Cohere, and Mistral and gives your team one stable API with the operational features production systems need.
+
+## What it does
+
+| Feature | Description |
+|---|---|
+| **Unified API** | One OpenAI-compatible endpoint regardless of the underlying provider |
+| **Multi-tenancy** | Isolated API keys, RBAC, and usage data per tenant |
+| **Semantic caching** | pgvector cosine similarity cache — near-duplicate prompts served from cache |
+| **Rate limiting** | Redis-backed sliding window limiter (TPM + RPM) per tenant |
+| **Cost attribution** | Per-tenant token tracking with dollar-cost attribution |
+| **BYOK** | Bring your own provider keys — AES-256-GCM encrypted at rest |
+| **PII masking** | Regex scrub on request bodies before storage |
+| **Observability** | Structured logs, circuit breaker states, cache hit rates |
+
+## Architecture
+
+```
+Request → Auth → Rate Limit → PII Mask → Semantic Cache → Provider → Usage Logger
+```
+
+Every request flows through an ordered middleware pipeline. Adding a new concern is another hook — not a rewrite.
+
+## Quick links
+
+- [Quickstart](/docs/quickstart) — working request in 60 seconds
+- [Authentication](/docs/authentication) — API keys and BYOK
+- [SDK](/docs/sdk) — TypeScript SDK for Node.js
+- [API Reference](http://localhost:3000/docs) — live Swagger UI
+
+## Base URL
+
+```
+http://localhost:3000
+```
+
+All endpoints are prefixed with `/v1` except `/health`.

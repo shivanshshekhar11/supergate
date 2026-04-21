@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Playground Route
  *
  * POST /v1/playground/chat
@@ -10,7 +10,6 @@
 
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
-import { dashboardAuthMiddleware } from '../middleware/dashboard-auth'
 import { getProviderForRequest, getProviderName } from '../providers/router'
 import { getTenantTier, listTenantLLMKeys } from '../lib/tenant-keys'
 import { randomUUID } from 'crypto'
@@ -27,7 +26,7 @@ export async function playgroundRoutes(app: FastifyInstance) {
   app.post(
     '/v1/playground/chat',
     {
-      onRequest: dashboardAuthMiddleware,
+      
       schema: {
         tags: ['Playground'],
         summary: 'Playground chat',
@@ -37,13 +36,13 @@ export async function playgroundRoutes(app: FastifyInstance) {
       },
     },
     async (request: any, reply) => {
-      const { tenantId } = request.userContext!
+      const { tenantId } = request.tenantContext!
       const startTime = Date.now()
       const requestId = randomUUID()
 
       const body = PlaygroundRequestSchema.parse(request.body)
 
-      // Build messages — prepend system prompt if provided
+      // Build messages â€” prepend system prompt if provided
       const messages = body.systemPrompt
         ? [{ role: 'system' as const, content: body.systemPrompt }, ...body.messages]
         : body.messages
@@ -112,7 +111,7 @@ export async function playgroundRoutes(app: FastifyInstance) {
   app.get(
     '/v1/playground/models',
     {
-      onRequest: dashboardAuthMiddleware,
+      
       schema: {
         tags: ['Playground'],
         summary: 'List available models',
@@ -121,7 +120,7 @@ export async function playgroundRoutes(app: FastifyInstance) {
       },
     },
     async (request: any, reply) => {
-      const { tenantId } = request.userContext!
+      const { tenantId } = request.tenantContext!
 
       const [tier, byokKeys] = await Promise.all([
         getTenantTier(tenantId),
@@ -130,7 +129,7 @@ export async function playgroundRoutes(app: FastifyInstance) {
 
       const byokProviders = new Set(byokKeys.map(k => k.provider))
 
-      // Curated model list — most useful models per provider
+      // Curated model list â€” most useful models per provider
       const models = [
         // OpenAI
         { id: 'gpt-4o',          provider: 'openai',    label: 'GPT-4o'              },
@@ -167,3 +166,4 @@ export async function playgroundRoutes(app: FastifyInstance) {
     }
   )
 }
+

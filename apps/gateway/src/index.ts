@@ -42,8 +42,12 @@ async function bootstrap() {
   })
 
   // Register CORS
+  const allowedOrigins = env.CORS_ORIGINS
+    ? env.CORS_ORIGINS.split(',').map((o) => o.trim())
+    : true
+
   await app.register(cors, {
-    origin: true, // Allow all origins in development
+    origin: allowedOrigins,
     credentials: true,
   })
 
@@ -109,8 +113,10 @@ async function bootstrap() {
       },
       servers: [
         {
-          url: `http://localhost:${env.PORT}`,
-          description: 'Development server',
+          url: env.NODE_ENV === 'production'
+            ? (process.env.GATEWAY_PUBLIC_URL ?? `http://localhost:${env.PORT}`)
+            : `http://localhost:${env.PORT}`,
+          description: env.NODE_ENV === 'production' ? 'Production server' : 'Development server',
         },
       ],
       components: {
@@ -164,15 +170,11 @@ async function bootstrap() {
   
   // Protected routes need auth + rate limiting
   app.addHook('onRequest', async (request, reply) => {
-    // Skip auth for health, docs, auth, usage, cache, tenant key, and playground endpoints
+    // Skip auth for public/self-authenticating endpoints
     if (
       request.url.startsWith('/health') ||
       request.url.startsWith('/docs') ||
-      request.url.startsWith('/v1/auth') ||
-      request.url.startsWith('/v1/usage') ||
-      request.url.startsWith('/v1/cache') ||
-      request.url.startsWith('/v1/tenant') ||
-      request.url.startsWith('/v1/playground')
+      request.url.startsWith('/v1/auth')
     ) {
       return
     }
@@ -180,7 +182,7 @@ async function bootstrap() {
   })
   
   app.addHook('preHandler', async (request, reply) => {
-    // Skip rate limiting for health, docs, auth, usage, cache, tenant key, and playground endpoints
+    // Skip rate limiting for non-chat endpoints
     if (
       request.url.startsWith('/health') ||
       request.url.startsWith('/docs') ||
@@ -188,6 +190,7 @@ async function bootstrap() {
       request.url.startsWith('/v1/usage') ||
       request.url.startsWith('/v1/cache') ||
       request.url.startsWith('/v1/tenant') ||
+      request.url.startsWith('/v1/keys') ||
       request.url.startsWith('/v1/playground')
     ) {
       return
@@ -208,7 +211,7 @@ async function bootstrap() {
   
   // Usage logger runs after response (fire-and-forget)
   app.addHook('onResponse', async (request, reply) => {
-    // Skip for health, docs, auth, usage, cache, tenant key, and playground endpoints
+    // Only log usage for chat completions
     if (
       request.url.startsWith('/health') ||
       request.url.startsWith('/docs') ||
@@ -216,6 +219,7 @@ async function bootstrap() {
       request.url.startsWith('/v1/usage') ||
       request.url.startsWith('/v1/cache') ||
       request.url.startsWith('/v1/tenant') ||
+      request.url.startsWith('/v1/keys') ||
       request.url.startsWith('/v1/playground')
     ) {
       return

@@ -1,0 +1,55 @@
+---
+title: Semantic Cache
+description: How pgvector cosine similarity caching works — exact matches, near-duplicates, and adaptive thresholds.
+---
+
+The semantic cache is the technical centrepiece of Supergate. Instead of only caching exact prompt matches, it uses vector embeddings to detect near-duplicate prompts and serve cached responses for them.
+
+## How it works
+
+Every chat request goes through a two-stage lookup:
+
+**Stage 1 — Exact match (fast path)**
+
+The prompt is hashed with SHA-256 and looked up in `cache_entries.prompt_hash`. If found, the cached response is returned immediately — no vector math.
+
+**Stage 2 — Semantic match (vector path)**
+
+If no exact match, the prompt is embedded using `text-embedding-3-small` and a cosine similarity search is run against all cached embeddings for the same tenant and model using pgvector's HNSW index.
+
+If a match is found above the similarity threshold, the cached response is returned with `X-Cache: HIT`.
+
+## Adaptive thresholds
+
+The similarity threshold adapts based on prompt length:
+
+| Prompt length | Threshold | Reason |
+|---|---|---|
+| < 40 characters | 0.95 | Short prompts are ambiguous — require tighter match |
+| ≥ 40 characters | 0.92 | Longer prompts have more signal — looser match is safe |
+
+## Response headers
+
+```
+X-Cache: HIT          # or MISS
+X-Cache-Type: EXACT   # or SEMANTIC
+X-Cache-Similarity: 0.9412  # only on SEMANTIC hits
+```
+
+## Tenant isolation
+
+Cache entries are scoped to `(tenant_id, model)`. A cache hit for tenant A will never be served to tenant B, even for identical prompts.
+
+## TTL
+
+Cache entries expire after 24 hours by default (`CACHE_TTL_SECONDS=86400`). A cleanup job runs hourly to remove expired entries.
+
+## Cost savings
+
+The dashboard shows estimated cost savings from cache hits — calculated as the average cost per non-cached request multiplied by the number of cache hits.
+
+## Limitations
+
+- Streaming requests are never cached (responses are served from the provider in real time)
+- The circuit breaker for the embedding provider is separate from the LLM provider circuit breakers
+- In a multi-replica deployment, circuit breaker state is in-process — not shared across replicas

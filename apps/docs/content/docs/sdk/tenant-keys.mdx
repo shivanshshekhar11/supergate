@@ -1,0 +1,63 @@
+---
+title: client.tenantKeys
+description: Manage BYOK provider keys — add, rotate, and remove your own LLM API keys.
+---
+
+Configure your own LLM provider API keys (Bring Your Own Key). When set, they take precedence over the gateway's shared keys for that provider.
+
+## List keys
+
+```typescript
+const keys = await client.tenantKeys.list()
+
+keys.forEach(key => {
+  console.log(`${key.provider}: ${key.apiKeyMasked}`)
+  // openai: sk-proj-...xyz
+})
+```
+
+## Add a key
+
+```typescript
+await client.tenantKeys.create({
+  provider: 'openai',
+  apiKey:   'sk-proj-...',
+})
+```
+
+Throws if a key already exists for that provider — use `update()` to rotate.
+
+## Rotate a key
+
+```typescript
+await client.tenantKeys.update('openai', 'sk-proj-new...')
+```
+
+The old key is deactivated immediately.
+
+## Remove a key
+
+```typescript
+await client.tenantKeys.remove('openai')
+```
+
+After removal, requests fall back to the gateway's shared key (if your tier allows it). Enterprise-independent tenants will have requests fail until a new key is added.
+
+## Supported providers
+
+```typescript
+type SupportedProvider = 'openai' | 'anthropic' | 'google' | 'cohere' | 'mistral'
+```
+
+## Types
+
+```typescript
+interface TenantKeyMetadata {
+  id:           string
+  provider:     SupportedProvider
+  apiKeyMasked: string   // e.g. "sk-proj-...xyz"
+  isActive:     boolean
+  lastUsed:     string | null
+  createdAt:    string
+}
+```

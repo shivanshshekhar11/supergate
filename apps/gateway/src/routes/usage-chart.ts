@@ -1,12 +1,12 @@
-/**
+﻿/**
  * Usage Chart Route
  *
  * GET /v1/usage/chart
  *
  * Returns pre-bucketed chart data for the dashboard:
- *   - 24h  → 12 buckets of 2 hours each
- *   - 7d   → 7 buckets of 1 day each
- *   - 30d  → 30 buckets of 1 day each
+ *   - 24h  â†’ 12 buckets of 2 hours each
+ *   - 7d   â†’ 7 buckets of 1 day each
+ *   - 30d  â†’ 30 buckets of 1 day each
  *
  * Accepts an optional `provider` query param to filter by provider.
  * All queries are scoped to the authenticated tenant.
@@ -17,30 +17,7 @@ import { z } from 'zod'
 import { db } from '../db/client'
 import { usageLogs } from '../db/schema'
 import { sql, and, gte, eq, SQL } from 'drizzle-orm'
-import { dashboardAuthMiddleware } from '../middleware/dashboard-auth'
-import { authMiddleware } from '../middleware/auth'
 import { UsageChartResponseSchema, type UsageChartResponse } from '@llm-gateway/schemas'
-
-async function hybridAuthMiddleware(request: any, reply: any) {
-  const authHeader = request.headers.authorization
-  if (!authHeader) {
-    return reply.code(401).send({ error: { code: 'unauthorized', message: 'Missing authorization header' } })
-  }
-  if (authHeader.startsWith('Bearer eyJ')) {
-    try {
-      await dashboardAuthMiddleware(request, reply)
-      return
-    } catch (_) { /* fall through */ }
-  }
-  await authMiddleware(request, reply)
-  if (request.tenantContext) {
-    request.userContext = {
-      userId: request.tenantContext.keyId,
-      tenantId: request.tenantContext.tenantId,
-      role: request.tenantContext.keyRole as 'admin' | 'member' | 'guest',
-    }
-  }
-}
 
 const ChartQuerySchema = z.object({
   timeRange: z.enum(['24h', '7d', '30d']).default('7d'),
@@ -54,7 +31,7 @@ export async function usageChartRoutes(app: FastifyInstance) {
   }>(
     '/v1/usage/chart',
     {
-      preHandler: hybridAuthMiddleware,
+      
       schema: {
         tags: ['Usage'],
         summary: 'Get chart data',
@@ -64,7 +41,7 @@ export async function usageChartRoutes(app: FastifyInstance) {
       },
     },
     async (request, reply) => {
-      const tenantId = request.userContext!.tenantId
+      const tenantId = request.tenantContext!.tenantId
       const { timeRange, provider } = ChartQuerySchema.parse(request.query)
 
       const now = new Date()
@@ -76,7 +53,7 @@ export async function usageChartRoutes(app: FastifyInstance) {
       }
 
       if (timeRange === '24h') {
-        // 12 buckets × 2 hours — group by floor(hour/2)*2
+        // 12 buckets Ã— 2 hours â€” group by floor(hour/2)*2
         const startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000)
         conditions.push(gte(usageLogs.createdAt, startDate))
 
@@ -131,7 +108,7 @@ export async function usageChartRoutes(app: FastifyInstance) {
         })
       }
 
-      // 7d or 30d — one bucket per calendar day
+      // 7d or 30d â€” one bucket per calendar day
       const days = timeRange === '7d' ? 7 : 30
       const startDate = new Date(now)
       startDate.setDate(now.getDate() - days)
@@ -186,3 +163,5 @@ export async function usageChartRoutes(app: FastifyInstance) {
     }
   )
 }
+
+

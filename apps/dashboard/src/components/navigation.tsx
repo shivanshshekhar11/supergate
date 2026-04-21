@@ -2,14 +2,15 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Activity, BarChart3, Key, FlaskConical, Settings, LogOut, User, ChevronDown, Menu, X } from 'lucide-react'
+import { Activity, BarChart3, Key, KeyRound, FlaskConical, Settings, LogOut, User, ChevronDown, Menu, X } from 'lucide-react'
 import { useAuth } from '@/contexts/auth-context'
 import { useState, useEffect, useRef } from 'react'
 
 const navigation = [
   { name: 'Overview',   href: '/',           icon: Activity     },
   { name: 'Usage',      href: '/usage',       icon: BarChart3    },
-  { name: 'API Keys',   href: '/keys',        icon: Key          },
+  { name: 'API Keys',   href: '/api-keys',    icon: KeyRound     },
+  { name: 'LLM Keys',   href: '/keys',        icon: Key          },
   { name: 'Playground', href: '/playground',  icon: FlaskConical },
 ]
 

@@ -1,0 +1,75 @@
+---
+title: Rate Limiting
+description: Redis-backed sliding window rate limiting per tenant — TPM and RPM.
+---
+
+Every tenant has two independent rate limits enforced atomically via Redis Lua scripts:
+
+| Limit | Default | Description |
+|---|---|---|
+| **RPM** | 60 | Requests per minute |
+| **TPM** | 100,000 | Tokens per minute |
+
+Both limits use a sliding window keyed to the current minute bucket.
+
+## Response headers
+
+Every response includes rate limit headers:
+
+```
+X-RateLimit-Limit-RPM: 60
+X-RateLimit-Remaining-RPM: 47
+X-RateLimit-Limit-TPM: 100000
+X-RateLimit-Remaining-TPM: 84320
+```
+
+## When a limit is exceeded
+
+The gateway returns `429 Too Many Requests`:
+
+```json
+{
+  "error": {
+    "code": "rate_limit_exceeded",
+    "message": "Tenant RPM limit exceeded",
+    "requestId": "req_abc123"
+  }
+}
+```
+
+The response also includes a `Retry-After` header with the number of seconds until the window resets.
+
+## Token estimation
+
+Token counts are estimated before the request is sent to the provider (`wordCount × 1.3`) and reconciled with the actual count from the provider response. This prevents a single large request from bypassing the TPM limit.
+
+## Atomicity
+
+The rate limit check uses a Lua script executed atomically on Redis. This means the check and increment happen in a single operation — no race conditions across concurrent requests or multiple gateway replicas.
+
+```lua
+-- Simplified version of the Lua script
+local tpm = redis.call('INCRBY', tpm_key, token_estimate)
+if tpm == token_estimate then redis.call('PEXPIRE', tpm_key, window_ms) end
+local rpm = redis.call('INCR', rpm_key)
+if rpm == 1 then redis.call('PEXPIRE', rpm_key, window_ms) end
+if tpm > tpm_limit or rpm > rpm_limit then return 1 end
+return 0
+```
+
+## SDK handling
+
+The SDK exposes `RateLimitError` with a `retryAfter` property:
+
+```typescript
+import { RateLimitError } from '@supergate/sdk'
+
+try {
+  await client.chat.completions.create({ ... })
+} catch (err) {
+  if (err instanceof RateLimitError) {
+    console.log(`Retry after ${err.retryAfter} seconds`)
+    await sleep(err.retryAfter * 1000)
+  }
+}
+```

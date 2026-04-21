@@ -1,0 +1,60 @@
+---
+title: SDK Overview
+description: TypeScript SDK for the Supergate gateway — typed wrappers for every endpoint.
+---
+
+`@supergate/sdk` is a TypeScript-first SDK that wraps the Supergate gateway API. It ships full type declarations, dual CJS/ESM output, and zero required runtime dependencies beyond `openai` (optional, for streaming).
+
+## Installation
+
+```bash
+npm install @supergate/sdk
+# streaming support
+npm install openai
+```
+
+## Initialisation
+
+```typescript
+import { SupergateClient } from '@supergate/sdk'
+
+const client = new SupergateClient({
+  apiKey:  process.env.SUPERGATE_API_KEY!,
+  baseUrl: process.env.SUPERGATE_URL ?? 'http://localhost:3000',
+})
+```
+
+### Options
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `apiKey` | `string` | required | Gateway API key (`gw_...`) |
+| `baseUrl` | `string` | `http://localhost:3000` | Gateway base URL |
+| `timeout` | `number` | `30000` | Request timeout in ms |
+| `defaultHeaders` | `Record<string, string>` | `{}` | Headers added to every request |
+
+## Resources
+
+| Resource | Description |
+|---|---|
+| [`client.chat`](/docs/sdk/chat) | OpenAI-compatible chat completions |
+| [`client.keys`](/docs/sdk/keys) | Gateway API key management |
+| [`client.tenantKeys`](/docs/sdk/tenant-keys) | BYOK provider key management |
+| [`client.usage`](/docs/sdk/usage) | Usage analytics and cost data |
+| [`client.health`](/docs/sdk/health) | Gateway and provider health |
+
+## Error handling
+
+All errors extend `SupergateError`. See the [errors reference](/docs/sdk/errors).
+
+```typescript
+import { SupergateClient, RateLimitError, AuthError } from '@supergate/sdk'
+
+try {
+  await client.chat.completions.create({ ... })
+} catch (err) {
+  if (err instanceof RateLimitError) {
+    await sleep(err.retryAfter! * 1000)
+  }
+}
+```

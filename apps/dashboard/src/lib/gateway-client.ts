@@ -16,6 +16,9 @@ import {
   UsageLogsResponseSchema,
   StoreTenantKeyResponseSchema,
   ListTenantKeysResponseSchema,
+  CreateKeyRequestSchema,
+  CreateKeyResponseSchema,
+  KeyMetadataSchema,
   type RegisterRequest,
   type LoginRequest,
   type AuthResponse,
@@ -26,6 +29,9 @@ import {
   type UsageLogsResponse,
   type StoreTenantKeyResponse,
   type TenantKeyMetadata,
+  type CreateKeyRequest,
+  type CreateKeyResponse,
+  type KeyMetadata,
 } from '@llm-gateway/schemas'
 
 const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3000'
@@ -241,6 +247,35 @@ export const playgroundAPI = {
   },
 }
 
+export const gatewayKeysAPI = {
+  /** List all gateway API keys for the tenant. Requires admin or user role. */
+  async list(token: string): Promise<KeyMetadata[]> {
+    const res = await gatewayFetch<{ keys: KeyMetadata[] }>(
+      '/v1/keys',
+      { method: 'GET', headers: { Authorization: `Bearer ${token}` } },
+    )
+    return res.keys.map(k => KeyMetadataSchema.parse(k))
+  },
+
+  /** Create a new gateway API key. Requires admin role. Raw key shown once. */
+  async create(token: string, payload: CreateKeyRequest): Promise<CreateKeyResponse> {
+    CreateKeyRequestSchema.parse(payload)
+    return gatewayFetch<CreateKeyResponse>(
+      '/v1/keys',
+      { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: JSON.stringify(payload) },
+      CreateKeyResponseSchema,
+    )
+  },
+
+  /** Revoke a gateway API key by ID. Requires admin role. */
+  async revoke(token: string, id: string): Promise<void> {
+    await gatewayFetch<unknown>(
+      `/v1/keys/${id}`,
+      { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } },
+    )
+  },
+}
+
 export const tenantKeysAPI = {
   /** List all BYOK keys for the tenant (admin + member). */
   async list(token: string): Promise<TenantKeyMetadata[]> {
@@ -287,4 +322,7 @@ export type {
   UsageLogsResponse,
   StoreTenantKeyResponse,
   TenantKeyMetadata,
+  KeyMetadata,
+  CreateKeyRequest,
+  CreateKeyResponse,
 }

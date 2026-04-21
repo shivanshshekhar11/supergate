@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Usage Logs Routes
  * 
  * Endpoints for querying paginated usage logs with filters
@@ -9,48 +9,10 @@ import { z } from 'zod'
 import { db } from '../db/client'
 import { usageLogs } from '../db/schema'
 import { sql, and, eq, desc, gte, SQL } from 'drizzle-orm'
-import { dashboardAuthMiddleware } from '../middleware/dashboard-auth'
-import { authMiddleware } from '../middleware/auth'
 import {
   UsageLogsResponseSchema,
   type UsageLogsResponse,
 } from '@llm-gateway/schemas'
-
-// Hybrid auth middleware that accepts both JWT (dashboard) and API key (tests/programmatic)
-async function hybridAuthMiddleware(request: any, reply: any) {
-  const authHeader = request.headers.authorization
-  
-  if (!authHeader) {
-    return reply.code(401).send({
-      error: {
-        code: 'unauthorized',
-        message: 'Missing authorization header',
-      },
-    })
-  }
-
-  // Try JWT auth first (for dashboard) - JWT tokens start with "eyJ"
-  if (authHeader.startsWith('Bearer eyJ')) {
-    try {
-      await dashboardAuthMiddleware(request, reply)
-      return
-    } catch (error) {
-      // If JWT fails, fall through to API key auth
-    }
-  }
-
-  // Try API key auth (for tests and programmatic access)
-  await authMiddleware(request, reply)
-  
-  // Map tenantContext to userContext for consistency
-  if (request.tenantContext) {
-    request.userContext = {
-      userId: request.tenantContext.keyId,
-      tenantId: request.tenantContext.tenantId,
-      role: request.tenantContext.keyRole as 'admin' | 'member' | 'guest',
-    }
-  }
-}
 
 const UsageLogsQuerySchema = z.object({
   page: z.coerce.number().min(1).default(1),
@@ -73,7 +35,7 @@ export async function usageLogsRoutes(app: FastifyInstance) {
   }>(
     '/v1/usage/logs',
     {
-      preHandler: hybridAuthMiddleware,
+      
       schema: {
         tags: ['Usage'],
         summary: 'Get usage logs',
@@ -83,7 +45,7 @@ export async function usageLogsRoutes(app: FastifyInstance) {
       },
     },
     async (request, reply) => {
-      const tenantId = request.userContext!.tenantId
+      const tenantId = request.tenantContext!.tenantId
       
       // Parse and validate query params with coercion
       const queryParams = UsageLogsQuerySchema.parse(request.query)
@@ -178,3 +140,5 @@ export async function usageLogsRoutes(app: FastifyInstance) {
     }
   )
 }
+
+

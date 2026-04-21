@@ -1,0 +1,99 @@
+---
+title: Quickstart
+description: Send your first request through the Supergate gateway in under 60 seconds.
+---
+
+## Prerequisites
+
+- Docker and Docker Compose
+- Node.js 20+
+- pnpm 9+
+
+## 1. Start the infrastructure
+
+```bash
+docker compose up -d
+```
+
+This starts PostgreSQL (with pgvector) and Redis.
+
+## 2. Install dependencies and run migrations
+
+```bash
+pnpm install
+pnpm db:migrate
+pnpm --filter @llm-gateway/gateway db:seed
+```
+
+The seed script creates a test tenant and prints an API key to stdout — copy it.
+
+## 3. Start the gateway
+
+```bash
+pnpm --filter @llm-gateway/gateway dev
+```
+
+Gateway runs on `http://localhost:3000`.
+
+## 4. Send a request
+
+```bash
+curl http://localhost:3000/v1/chat/completions \
+  -H "Authorization: Bearer gw_your_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-4o-mini",
+    "messages": [{ "role": "user", "content": "Hello from Supergate!" }]
+  }'
+```
+
+You should get an OpenAI-compatible response back.
+
+## 5. Check the response headers
+
+Every response includes gateway metadata:
+
+| Header | Description |
+|---|---|
+| `X-Request-ID` | Unique request identifier |
+| `X-Cache` | `HIT` or `MISS` — whether the response was served from semantic cache |
+| `X-Latency-Ms` | Total gateway latency in milliseconds |
+
+## 6. View the dashboard
+
+```bash
+pnpm --filter @llm-gateway/dashboard dev
+```
+
+Dashboard runs on `http://localhost:3001`. Log in with:
+
+- Email: `admin@example.com`
+- Password: `password123`
+
+## Using the SDK
+
+```bash
+npm install @supergate/sdk openai
+```
+
+```typescript
+import { SupergateClient } from '@supergate/sdk'
+
+const client = new SupergateClient({
+  apiKey:  'gw_your_key_here',
+  baseUrl: 'http://localhost:3000',
+})
+
+const response = await client.chat.completions.create({
+  model:    'gpt-4o-mini',
+  messages: [{ role: 'user', content: 'Hello from Supergate!' }],
+})
+
+console.log(response.choices[0].message.content)
+```
+
+## Next steps
+
+- [Authentication](/docs/authentication) — understand API keys and BYOK
+- [Rate limiting](/docs/rate-limiting) — configure limits per tenant
+- [Semantic cache](/docs/semantic-cache) — how near-duplicate detection works
