@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-typecheck:
+    name: Lint and Type Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type check
+        run: pnpm build
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: llm_gateway
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Create gateway .env for CI
+        run: |
+          cat > apps/gateway/.env << 'EOF'
+          DATABASE_URL=postgresql://postgres:postgres@localhost:5432/llm_gateway
+          REDIS_URL=redis://localhost:6379
+          OPENAI_API_KEY=sk-test-key
+          ANTHROPIC_API_KEY=sk-ant-test-key
+          EMBEDDING_MODEL=text-embedding-3-small
+          EMBEDDING_DIMENSIONS=1536
+          CACHE_SIMILARITY_THRESHOLD_DEFAULT=0.92
+          CACHE_SIMILARITY_THRESHOLD_SHORT=0.95
+          CACHE_TTL_SECONDS=86400
+          DEFAULT_RPM=60
+          DEFAULT_TPM=100000
+          CIRCUIT_BREAKER_THRESHOLD=5
+          CIRCUIT_BREAKER_RESET_MS=30000
+          PORT=3001
+          NODE_ENV=test
+          LOG_LEVEL=error
+          ENCRYPTION_MASTER_KEY=test-encryption-key-32-chars-long-minimum
+          JWT_SECRET=test-jwt-secret-key-at-least-32-characters-long-for-testing
+          EOF
+
+      - name: Run migrations
+        run: pnpm --filter @llm-gateway/gateway db:setup
+
+      - name: Run tests
+        run: pnpm test

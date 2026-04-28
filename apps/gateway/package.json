@@ -16,7 +16,7 @@
     "db:seed": "tsx src/db/seed.ts",
     "db:push": "drizzle-kit push",
     "db:enable-pgvector": "tsx src/db/enable-pgvector.ts",
-    "db:setup": "pnpm db:enable-pgvector && pnpm db:push",
+    "db:setup": "pnpm db:enable-pgvector && pnpm db:migrate",
     "with-dev-env": "dotenv -e .env.development --",
     "with-prod-env": "dotenv -e .env.production --"
   },

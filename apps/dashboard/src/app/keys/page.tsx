@@ -290,7 +290,7 @@ export default function KeysPage() {
         <Key className="w-4 h-4 text-[#e5e2e1]/30 mt-0.5 shrink-0" />
         <p className="text-xs text-[#e5e2e1]/40 leading-relaxed" style={{ fontFamily: 'Manrope, sans-serif' }}>
           BYOK keys are encrypted with AES-256-GCM before storage and never returned in plaintext.
-          When a BYOK key is configured, it takes precedence over the gateway's shared key for that provider.
+          When a BYOK key is configured, it takes precedence over the gateway&apos;s shared key for that provider.
           Enterprise-independent tenants must configure their own keys — no gateway fallback is available.
         </p>
       </div>

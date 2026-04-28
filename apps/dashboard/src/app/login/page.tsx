@@ -151,7 +151,7 @@ export default function LoginPage() {
           {/* Register Link */}
           <div className="mt-8 text-center">
             <p className="text-[#e5e2e1]/70 tracking-[0.01em]" style={{ fontFamily: 'Manrope, sans-serif' }}>
-              Don't have an account?{' '}
+              Don&apos;t have an account?{' '}
               <Link
                 href="/register"
                 className="text-[#ffba38] hover:text-[#c78b00] font-medium transition-colors"

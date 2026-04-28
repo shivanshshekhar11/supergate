@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import {
   Activity,
   Zap,
@@ -90,10 +91,13 @@ export default function LandingPage() {
             </div>
             <div className="relative lg:h-[600px] flex items-center justify-center">
               <div className="w-full aspect-square bg-[#353534]/40 backdrop-blur-[24px] border border-[#4f453f]/15 rounded-2xl shadow-[0_48px_48px_-12px_rgba(0,0,0,0.6)] flex items-center justify-center p-8 overflow-hidden relative group">
-                <img
+                <Image
                   alt="3D Abstract Visual"
                   className="w-full h-full object-cover rounded-xl opacity-80 group-hover:scale-105 transition-transform duration-700"
                   src="https://lh3.googleusercontent.com/aida-public/AB6AXuBqBdPiNZFfXW-rGv0PyNmobd_3CupPNkkDuRN-A4i8UGV3rwUza3Fji0WULtvBA1rAUXm2RGqfaVxjmWWJTQ0gxeo9pgWbzknonMKKhq62Dok6OS4fgu9RIQqHsVldap00R_Sugdy180Y0Ac1SQwweDB4IrnmldjJhtiX8wp7v7uMPv7wEUGVab2FQI_88qfg83KoSomBpu8CZ248N1wbg40g_ApH-DuTErpWRxW7SXVCjUrnXeZ3hbUePyZTbpxMqyc4WaaaT_rw"
+                  width={600}
+                  height={600}
+                  unoptimized
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#0e0e0e] to-transparent opacity-60"></div>
                 <div className="absolute bottom-8 left-8 right-8">
