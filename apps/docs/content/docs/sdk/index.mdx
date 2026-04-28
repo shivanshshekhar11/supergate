@@ -20,7 +20,7 @@ import { SupergateClient } from '@supergate/sdk'
 
 const client = new SupergateClient({
   apiKey:  process.env.SUPERGATE_API_KEY!,
-  baseUrl: process.env.SUPERGATE_URL ?? 'http://localhost:3000',
+  baseUrl: process.env.SUPERGATE_URL!,
 })
 ```
 
@@ -29,7 +29,7 @@ const client = new SupergateClient({
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `apiKey` | `string` | required | Gateway API key (`gw_...`) |
-| `baseUrl` | `string` | `http://localhost:3000` | Gateway base URL |
+| `baseUrl` | `string` | required | Gateway base URL |
 | `timeout` | `number` | `30000` | Request timeout in ms |
 | `defaultHeaders` | `Record<string, string>` | `{}` | Headers added to every request |
 

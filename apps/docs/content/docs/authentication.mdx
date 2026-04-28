@@ -41,7 +41,7 @@ Via the dashboard (recommended): navigate to **API Keys** and click **New Key**.
 Via the API:
 
 ```bash
-curl -X POST http://localhost:3000/v1/keys \
+curl -X POST https://<your-gateway-host>/v1/keys \
   -H "Authorization: Bearer gw_your_admin_key" \
   -H "Content-Type: application/json" \
   -d '{ "name": "prod-service", "role": "user" }'
@@ -54,7 +54,7 @@ curl -X POST http://localhost:3000/v1/keys \
   "keyPrefix": "gw_abc123",
   "role": "user",
   "name": "prod-service",
-  "createdAt": "2026-04-21T..."
+  "createdAt": "2025-01-01T00:00:00.000Z"
 }
 ```
 
@@ -85,7 +85,7 @@ Via the dashboard: navigate to **API Keys**, find the key, click **Revoke**.
 Via the API:
 
 ```bash
-curl -X DELETE http://localhost:3000/v1/keys/{id} \
+curl -X DELETE https://<your-gateway-host>/v1/keys/{id} \
   -H "Authorization: Bearer gw_your_admin_key"
 ```
 
@@ -127,7 +127,7 @@ Via the dashboard: navigate to **LLM Keys** and click **Add Key** for the provid
 Via the API:
 
 ```bash
-curl -X POST http://localhost:3000/v1/tenant/keys \
+curl -X POST https://<your-gateway-host>/v1/tenant/keys \
   -H "Authorization: Bearer gw_your_admin_key" \
   -H "Content-Type: application/json" \
   -d '{ "provider": "openai", "apiKey": "sk-proj-..." }'
@@ -142,7 +142,7 @@ Keys are encrypted with AES-256-GCM before storage. The raw value is never retur
 ### Rotating a key
 
 ```bash
-curl -X PUT http://localhost:3000/v1/tenant/keys/openai \
+curl -X PUT https://<your-gateway-host>/v1/tenant/keys/openai \
   -H "Authorization: Bearer gw_your_admin_key" \
   -H "Content-Type: application/json" \
   -d '{ "apiKey": "sk-proj-new..." }'

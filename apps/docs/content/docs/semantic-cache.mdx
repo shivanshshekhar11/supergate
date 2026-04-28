@@ -51,5 +51,5 @@ The dashboard shows estimated cost savings from cache hits — calculated as the
 ## Limitations
 
 - Streaming requests are never cached (responses are served from the provider in real time)
-- The circuit breaker for the embedding provider is separate from the LLM provider circuit breakers
+- The embedding call to generate vectors is itself subject to the OpenAI circuit breaker — if it trips, cache lookups fall back to exact-match only
 - In a multi-replica deployment, circuit breaker state is in-process — not shared across replicas

@@ -21,7 +21,7 @@ This starts PostgreSQL (with pgvector) and Redis.
 
 ```bash
 pnpm install
-pnpm db:migrate
+pnpm --filter @llm-gateway/gateway db:migrate
 pnpm --filter @llm-gateway/gateway db:seed
 ```
 
@@ -33,7 +33,7 @@ The seed script creates a test tenant and prints an API key to stdout — copy i
 pnpm --filter @llm-gateway/gateway dev
 ```
 
-Gateway runs on `http://localhost:3000`.
+Gateway runs on `http://localhost:3000` by default.
 
 ## 4. Send a request
 
@@ -65,7 +65,7 @@ Every response includes gateway metadata:
 pnpm --filter @llm-gateway/dashboard dev
 ```
 
-Dashboard runs on `http://localhost:3001`. Log in with:
+Dashboard runs on `http://localhost:3001` by default. Log in with:
 
 - Email: `admin@example.com`
 - Password: `password123`
@@ -80,8 +80,8 @@ npm install @supergate/sdk openai
 import { SupergateClient } from '@supergate/sdk'
 
 const client = new SupergateClient({
-  apiKey:  'gw_your_key_here',
-  baseUrl: 'http://localhost:3000',
+  apiKey:  process.env.SUPERGATE_API_KEY!,
+  baseUrl: process.env.SUPERGATE_URL ?? 'http://localhost:3000',
 })
 
 const response = await client.chat.completions.create({
