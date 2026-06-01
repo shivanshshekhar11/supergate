@@ -2,3 +2,34 @@
 @import 'tailwindcss/components';
 @import 'tailwindcss/utilities';
 @import 'fumadocs-ui/style.css';
+
+@layer base {
+  :root, .dark {
+    --background: 0 0% 7.5%;
+    --foreground: 0 4% 89%;
+    --primary: 39 100% 61%;
+    --primary-foreground: 39 100% 9%;
+    --card: 0 2% 11%;
+    --card-foreground: 0 4% 89%;
+    --popover: 0 2% 11%;
+    --popover-foreground: 0 4% 89%;
+    --muted: 60 1% 21%;
+    --muted-foreground: 0 4% 60%;
+    --border: 24 11% 28%;
+    --input: 24 11% 28%;
+    --ring: 39 100% 61%;
+    --radius: 0.5rem;
+  }
+  
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    font-family: var(--font-manrope), sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6, .text-xl, .text-2xl, .text-3xl, .text-4xl, .text-5xl, .font-bold {
+    font-family: var(--font-space-grotesk), sans-serif;
+  }
+}

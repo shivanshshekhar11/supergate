@@ -181,13 +181,28 @@ async function seed() {
     // 5. Generate extensive sample usage data
     console.log('\n📊 Generating extensive sample usage data...')
     
+    // Current models — all 5 providers
     const models = [
-      { model: 'gpt-4-turbo', provider: 'openai', inputCost: 0.01, outputCost: 0.03 },
-      { model: 'gpt-3.5-turbo', provider: 'openai', inputCost: 0.0005, outputCost: 0.0015 },
-      { model: 'gpt-4', provider: 'openai', inputCost: 0.03, outputCost: 0.06 },
-      { model: 'claude-3-opus', provider: 'anthropic', inputCost: 0.015, outputCost: 0.075 },
-      { model: 'claude-3-sonnet', provider: 'anthropic', inputCost: 0.003, outputCost: 0.015 },
-      { model: 'claude-3-haiku', provider: 'anthropic', inputCost: 0.00025, outputCost: 0.00125 },
+      // OpenAI GPT-4 series
+      { model: 'gpt-4o',        provider: 'openai',    inputCost: 0.0025,      outputCost: 0.010 },
+      { model: 'gpt-4.1',       provider: 'openai',    inputCost: 0.002,       outputCost: 0.008 },
+      { model: 'gpt-4o-mini',   provider: 'openai',    inputCost: 0.00015,     outputCost: 0.0006 },
+      { model: 'gpt-4.1-nano',  provider: 'openai',    inputCost: 0.0001,      outputCost: 0.0004 },
+      // Anthropic Claude 4.x series
+      { model: 'claude-opus-4-8',   provider: 'anthropic', inputCost: 0.015,    outputCost: 0.075 },
+      { model: 'claude-sonnet-4-6', provider: 'anthropic', inputCost: 0.003,    outputCost: 0.015 },
+      { model: 'claude-haiku-4-5',  provider: 'anthropic', inputCost: 0.00025,  outputCost: 0.00125 },
+      // Google Gemini 2.5 series
+      { model: 'gemini-2.5-flash',      provider: 'google', inputCost: 0.0003,   outputCost: 0.0025 },
+      { model: 'gemini-2.5-pro',        provider: 'google', inputCost: 0.00125,  outputCost: 0.010 },
+      { model: 'gemini-2.5-flash-lite', provider: 'google', inputCost: 0.0001,   outputCost: 0.0004 },
+      // Cohere Command A series
+      { model: 'command-a-03-2025',    provider: 'cohere', inputCost: 0.0025,    outputCost: 0.010 },
+      { model: 'command-r7b-12-2024',  provider: 'cohere', inputCost: 0.0000375, outputCost: 0.00015 },
+      // Mistral 2025/2026 lineup
+      { model: 'mistral-large-latest',  provider: 'mistral', inputCost: 0.003,  outputCost: 0.009 },
+      { model: 'mistral-medium-latest', provider: 'mistral', inputCost: 0.0027, outputCost: 0.0081 },
+      { model: 'mistral-small-latest',  provider: 'mistral', inputCost: 0.001,  outputCost: 0.003 },
     ]
 
     const statusCodes = [
@@ -224,12 +239,17 @@ async function seed() {
           }
         }
 
-        // Vary token counts based on model
-        const baseInputTokens = modelInfo.model.includes('gpt-4') ? 500 : 300
-        const baseOutputTokens = modelInfo.model.includes('gpt-4') ? 300 : 150
+        // Vary token counts based on model tier
+        const isHeavy = modelInfo.model.includes('opus') || modelInfo.model.includes('gpt-4o') ||
+                        modelInfo.model.includes('gpt-4.1') && !modelInfo.model.includes('mini') && !modelInfo.model.includes('nano') ||
+                        modelInfo.model.includes('pro') || modelInfo.model.includes('large') ||
+                        modelInfo.model.includes('command-a')
+        const baseInputTokens  = isHeavy ? 600 : 300
+        const baseOutputTokens = isHeavy ? 350 : 150
         
         const inputTokens = Math.floor(Math.random() * baseInputTokens * 2) + baseInputTokens
         const outputTokens = Math.floor(Math.random() * baseOutputTokens * 2) + baseOutputTokens
+        // inputCost/outputCost are per 1K tokens
         const costUsd = (inputTokens / 1000) * modelInfo.inputCost + (outputTokens / 1000) * modelInfo.outputCost
         
         // Latency varies by model and status

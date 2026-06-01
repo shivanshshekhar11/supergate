@@ -4,29 +4,18 @@ import { LLMProvider, ProviderConfig } from './types'
 import { CircuitBreaker } from '../lib/circuit-breaker'
 
 /**
- * Google Gemini cost table (USD per token)
- * Updated: 2024-12
+ * Google Gemini cost table (USD per token) — June 2026 (2.5 GA series)
  * Source: https://ai.google.dev/pricing
  */
 const COST_TABLE: Record<string, { inputUsd: number; outputUsd: number }> = {
-  // Gemini 2.0
-  'gemini-2.0-flash-exp': { inputUsd: 0.0, outputUsd: 0.0 }, // Free during preview
-  
-  // Gemini 1.5 Pro
-  'gemini-1.5-pro': { inputUsd: 0.00000125, outputUsd: 0.000005 }, // ≤128K tokens
-  'gemini-1.5-pro-001': { inputUsd: 0.00000125, outputUsd: 0.000005 },
-  'gemini-1.5-pro-002': { inputUsd: 0.00000125, outputUsd: 0.000005 },
-  
-  // Gemini 1.5 Flash
-  'gemini-1.5-flash': { inputUsd: 0.000000075, outputUsd: 0.0000003 }, // ≤128K tokens
-  'gemini-1.5-flash-001': { inputUsd: 0.000000075, outputUsd: 0.0000003 },
-  'gemini-1.5-flash-002': { inputUsd: 0.000000075, outputUsd: 0.0000003 },
-  'gemini-1.5-flash-8b': { inputUsd: 0.0000000375, outputUsd: 0.00000015 }, // Even cheaper
-  
-  // Gemini 1.0 Pro (legacy)
-  'gemini-1.0-pro': { inputUsd: 0.0000005, outputUsd: 0.0000015 },
-  'gemini-1.0-pro-001': { inputUsd: 0.0000005, outputUsd: 0.0000015 },
+  // Gemini 2.5 Pro (best quality)
+  'gemini-2.5-pro':        { inputUsd: 0.00000125, outputUsd: 0.000010 },
+  // Gemini 2.5 Flash (fast, cheap)
+  'gemini-2.5-flash':      { inputUsd: 0.0000003,  outputUsd: 0.0000025 },
+  // Gemini 2.5 Flash-Lite (ultra-cheap)
+  'gemini-2.5-flash-lite': { inputUsd: 0.0000001,  outputUsd: 0.0000004 },
 }
+
 
 /**
  * Google Gemini Provider implementation

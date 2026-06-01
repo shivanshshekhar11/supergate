@@ -98,7 +98,7 @@ export async function chatRoutes(app: FastifyInstance) {
             cached: false,
           }
         } catch (streamError) {
-          console.error('[Chat] Streaming error:', streamError)
+          request.log.error({ err: streamError }, '[Chat] Streaming error')
           reply.raw.write(
             `data: ${JSON.stringify({ error: 'Stream error occurred' })}\n\n`
           )
@@ -108,8 +108,11 @@ export async function chatRoutes(app: FastifyInstance) {
         return reply
       }
 
-      // Handle non-streaming
-      const response = await provider.chat(body)
+      // Handle non-streaming with 60s timeout
+      const response = await Promise.race([
+        provider.chat(body),
+        new Promise<any>((_, reject) => setTimeout(() => reject(new Error('Request timeout')), 60000))
+      ])
 
       // Store LLM result for usage logger
       request.llmResult = {
@@ -134,7 +137,17 @@ export async function chatRoutes(app: FastifyInstance) {
 
       return response
     } catch (error: any) {
-      console.error('[Chat] Error:', error)
+      request.log.error({ err: error }, '[Chat] Error processing request')
+
+      if (error.message === 'Request timeout') {
+        return reply.code(504).send({
+          error: {
+            code: 'gateway_timeout',
+            message: 'Upstream provider did not respond in time',
+            requestId,
+          },
+        })
+      }
 
       // Handle provider errors
       if (error.message?.includes('circuit breaker')) {

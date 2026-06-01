@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Playground Route
  *
  * POST /v1/playground/chat
@@ -129,26 +129,28 @@ export async function playgroundRoutes(app: FastifyInstance) {
 
       const byokProviders = new Set(byokKeys.map(k => k.provider))
 
-      // Curated model list â€” most useful models per provider
+      // Curated model list — current models available via provider APIs
       const models = [
         // OpenAI
-        { id: 'gpt-4o',          provider: 'openai',    label: 'GPT-4o'              },
-        { id: 'gpt-4o-mini',     provider: 'openai',    label: 'GPT-4o Mini'         },
-        { id: 'gpt-4-turbo',     provider: 'openai',    label: 'GPT-4 Turbo'         },
-        { id: 'gpt-3.5-turbo',   provider: 'openai',    label: 'GPT-3.5 Turbo'       },
-        // Anthropic
-        { id: 'claude-3-5-sonnet-20241022', provider: 'anthropic', label: 'Claude 3.5 Sonnet' },
-        { id: 'claude-3-5-haiku-20241022',  provider: 'anthropic', label: 'Claude 3.5 Haiku'  },
-        { id: 'claude-3-opus-20240229',     provider: 'anthropic', label: 'Claude 3 Opus'      },
-        // Google
-        { id: 'gemini-1.5-pro',   provider: 'google',  label: 'Gemini 1.5 Pro'      },
-        { id: 'gemini-1.5-flash', provider: 'google',  label: 'Gemini 1.5 Flash'    },
-        // Cohere
-        { id: 'command-r-plus',   provider: 'cohere',  label: 'Command R+'          },
-        { id: 'command-r',        provider: 'cohere',  label: 'Command R'           },
-        // Mistral
-        { id: 'mistral-large-latest', provider: 'mistral', label: 'Mistral Large'   },
-        { id: 'mistral-small-latest', provider: 'mistral', label: 'Mistral Small'   },
+        { id: 'gpt-4o',       provider: 'openai',    label: 'GPT-4o'              },
+        { id: 'gpt-4o-mini',  provider: 'openai',    label: 'GPT-4o Mini'         },
+        { id: 'gpt-4.1',      provider: 'openai',    label: 'GPT-4.1'             },
+        { id: 'gpt-4.1-nano', provider: 'openai',    label: 'GPT-4.1 Nano'        },
+        // Anthropic — Claude 4.x series
+        { id: 'claude-opus-4-8',   provider: 'anthropic', label: 'Claude Opus 4.8'   },
+        { id: 'claude-sonnet-4-6', provider: 'anthropic', label: 'Claude Sonnet 4.6' },
+        { id: 'claude-haiku-4-5',  provider: 'anthropic', label: 'Claude Haiku 4.5'  },
+        // Google — Gemini 2.5 series (GA)
+        { id: 'gemini-2.5-pro',        provider: 'google', label: 'Gemini 2.5 Pro'      },
+        { id: 'gemini-2.5-flash',      provider: 'google', label: 'Gemini 2.5 Flash'    },
+        { id: 'gemini-2.5-flash-lite', provider: 'google', label: 'Gemini 2.5 Flash Lite' },
+        // Cohere — Command A series
+        { id: 'command-a-03-2025',  provider: 'cohere', label: 'Command A'            },
+        { id: 'command-r7b-12-2024', provider: 'cohere', label: 'Command R7B'         },
+        // Mistral — current lineup
+        { id: 'mistral-large-latest',  provider: 'mistral', label: 'Mistral Large'  },
+        { id: 'mistral-medium-latest', provider: 'mistral', label: 'Mistral Medium' },
+        { id: 'mistral-small-latest',  provider: 'mistral', label: 'Mistral Small'  },
       ]
 
       // For enterprise-independent: only show models where BYOK is configured

@@ -4,27 +4,16 @@ import { LLMProvider, ProviderConfig } from './types'
 import { CircuitBreaker } from '../lib/circuit-breaker'
 
 /**
- * Cohere cost table (USD per token)
- * Updated: 2024-12
+ * Cohere cost table (USD per token) — updated June 2026
  * Source: https://cohere.com/pricing
  */
 const COST_TABLE: Record<string, { inputUsd: number; outputUsd: number }> = {
-  // Command R+ (most capable)
-  'command-r-plus': { inputUsd: 0.000003, outputUsd: 0.000015 },
-  'command-r-plus-08-2024': { inputUsd: 0.000003, outputUsd: 0.000015 },
-  
-  // Command R (balanced)
-  'command-r': { inputUsd: 0.0000005, outputUsd: 0.0000015 },
-  'command-r-08-2024': { inputUsd: 0.0000005, outputUsd: 0.0000015 },
-  
-  // Command (legacy)
-  'command': { inputUsd: 0.000001, outputUsd: 0.000002 },
-  'command-light': { inputUsd: 0.0000003, outputUsd: 0.0000006 },
-  
-  // Command Nightly (experimental)
-  'command-nightly': { inputUsd: 0.000001, outputUsd: 0.000002 },
-  'command-light-nightly': { inputUsd: 0.0000003, outputUsd: 0.0000006 },
+  // Command A 03-2025 (most capable)
+  'command-a-03-2025':   { inputUsd: 0.0000025,    outputUsd: 0.000010 },
+  // Command R7B (lightweight)
+  'command-r7b-12-2024': { inputUsd: 0.0000000375, outputUsd: 0.00000015 },
 }
+
 
 /**
  * Cohere Provider implementation

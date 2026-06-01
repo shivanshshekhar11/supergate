@@ -21,39 +21,39 @@ describe('Provider Router', () => {
   describe('Model to Provider Mapping', () => {
     it('should map OpenAI models correctly', () => {
       expect(getProviderName('gpt-4o')).toBe('openai')
+      expect(getProviderName('gpt-4.1')).toBe('openai')
       expect(getProviderName('gpt-4o-mini')).toBe('openai')
-      expect(getProviderName('gpt-4-turbo')).toBe('openai')
-      expect(getProviderName('gpt-3.5-turbo')).toBe('openai')
+      expect(getProviderName('gpt-4.1-nano')).toBe('openai')
     })
 
     it('should map Anthropic models correctly', () => {
-      expect(getProviderName('claude-3-5-sonnet-20241022')).toBe('anthropic')
-      expect(getProviderName('claude-3-5-haiku-20241022')).toBe('anthropic')
-      expect(getProviderName('claude-3-opus-20240229')).toBe('anthropic')
+      expect(getProviderName('claude-opus-4-8')).toBe('anthropic')
+      expect(getProviderName('claude-sonnet-4-6')).toBe('anthropic')
+      expect(getProviderName('claude-haiku-4-5')).toBe('anthropic')
     })
 
     it('should map Google models correctly', () => {
-      expect(getProviderName('gemini-2.0-flash-exp')).toBe('google')
-      expect(getProviderName('gemini-1.5-pro')).toBe('google')
-      expect(getProviderName('gemini-1.5-flash')).toBe('google')
+      expect(getProviderName('gemini-2.5-flash')).toBe('google')
+      expect(getProviderName('gemini-2.5-pro')).toBe('google')
+      expect(getProviderName('gemini-2.5-flash-lite')).toBe('google')
     })
 
     it('should map Cohere models correctly', () => {
-      expect(getProviderName('command-r-plus')).toBe('cohere')
-      expect(getProviderName('command-r')).toBe('cohere')
-      expect(getProviderName('command')).toBe('cohere')
+      expect(getProviderName('command-a-03-2025')).toBe('cohere')
+      expect(getProviderName('command-r7b-12-2024')).toBe('cohere')
     })
 
     it('should map Mistral models correctly', () => {
       expect(getProviderName('mistral-large-latest')).toBe('mistral')
+      expect(getProviderName('mistral-medium-latest')).toBe('mistral')
       expect(getProviderName('mistral-small-latest')).toBe('mistral')
-      expect(getProviderName('codestral-latest')).toBe('mistral')
     })
 
     it('should throw error for unknown model', () => {
       expect(() => getProviderName('unknown-model')).toThrow('Unknown model')
     })
   })
+
 
   describe('Hybrid BYOK - Gateway Key Fallback', () => {
     let tenantId: string
@@ -157,7 +157,7 @@ describe('Provider Router', () => {
       expect(openaiProvider.id).toBe('openai')
 
       // Should get Anthropic provider for Anthropic model
-      const anthropicProvider = await getProviderForRequest('claude-3-5-sonnet-20241022', tenantId)
+      const anthropicProvider = await getProviderForRequest('claude-sonnet-4-6', tenantId)
       expect(anthropicProvider.id).toBe('anthropic')
     })
   })
@@ -288,7 +288,7 @@ describe('Provider Router', () => {
 
       try {
         await expect(
-          getProviderForRequest('gemini-1.5-pro', tenant.id)
+          getProviderForRequest('gemini-2.5-pro', tenant.id)
         ).rejects.toThrow()
       } finally {
         // Restore original key

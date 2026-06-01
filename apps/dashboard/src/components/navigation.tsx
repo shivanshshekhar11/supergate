@@ -7,11 +7,11 @@ import { useAuth } from '@/contexts/auth-context'
 import { useState, useEffect, useRef } from 'react'
 
 const navigation = [
-  { name: 'Overview',   href: '/',           icon: Activity     },
-  { name: 'Usage',      href: '/usage',       icon: BarChart3    },
-  { name: 'API Keys',   href: '/api-keys',    icon: KeyRound     },
-  { name: 'LLM Keys',   href: '/keys',        icon: Key          },
-  { name: 'Playground', href: '/playground',  icon: FlaskConical },
+  { name: 'Overview',   href: '/dashboard',            icon: Activity     },
+  { name: 'Usage',      href: '/dashboard/usage',      icon: BarChart3    },
+  { name: 'API Keys',   href: '/dashboard/api-keys',   icon: KeyRound     },
+  { name: 'LLM Keys',   href: '/dashboard/keys',       icon: Key          },
+  { name: 'Playground', href: '/dashboard/playground', icon: FlaskConical },
 ]
 
 export function Navigation() {
@@ -55,7 +55,7 @@ export function Navigation() {
 
           {/* Left — logo + desktop nav */}
           <div className="flex items-center gap-6 lg:gap-10">
-            <Link href="/" className="flex items-center gap-2.5 shrink-0">
+            <Link href="/dashboard" className="flex items-center gap-2.5 shrink-0">
               <div className="rounded-[6px] bg-gradient-to-br from-[#ffba38] to-[#c78b00] p-2 sm:p-2.5">
                 <Activity className="w-4 h-4 sm:w-5 sm:h-5 text-[#281900]" strokeWidth={2.5} />
               </div>
@@ -158,7 +158,7 @@ export function Navigation() {
                     {/* Actions */}
                     <div className="p-1.5">
                       <Link
-                        href="/settings"
+                        href="/dashboard/settings"
                         onClick={() => setUserMenuOpen(false)}
                         className="flex items-center gap-2.5 w-full px-3 py-2 rounded-md text-sm text-[#e5e2e1]/70 hover:text-[#e5e2e1] hover:bg-[#1c1b1b] transition-colors"
                         style={{ fontFamily: 'Manrope, sans-serif' }}

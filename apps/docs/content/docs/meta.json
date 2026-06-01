@@ -3,6 +3,7 @@
   "pages": [
     "index",
     "quickstart",
+    "deployment",
     "authentication",
     "rate-limiting",
     "semantic-cache",

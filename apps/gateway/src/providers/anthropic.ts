@@ -4,17 +4,15 @@ import { LLMProvider, ProviderConfig } from './types'
 import { CircuitBreaker } from '../lib/circuit-breaker'
 
 /**
- * Anthropic cost table (USD per token)
- * Updated: 2024-04
+ * Anthropic cost table (USD per token) — updated June 2026
+ * Source: https://www.anthropic.com/api
  */
 const COST_TABLE: Record<string, { inputUsd: number; outputUsd: number }> = {
-  'claude-3-5-sonnet-20241022': { inputUsd: 0.000003, outputUsd: 0.000015 },
-  'claude-3-5-sonnet-20240620': { inputUsd: 0.000003, outputUsd: 0.000015 },
-  'claude-3-5-haiku-20241022': { inputUsd: 0.000001, outputUsd: 0.000005 },
-  'claude-3-opus-20240229': { inputUsd: 0.000015, outputUsd: 0.000075 },
-  'claude-3-sonnet-20240229': { inputUsd: 0.000003, outputUsd: 0.000015 },
-  'claude-3-haiku-20240307': { inputUsd: 0.00000025, outputUsd: 0.00000125 },
+  'claude-opus-4-8':   { inputUsd: 0.000005,  outputUsd: 0.000025 },
+  'claude-sonnet-4-6': { inputUsd: 0.000003,  outputUsd: 0.000015 },
+  'claude-haiku-4-5':  { inputUsd: 0.000001,  outputUsd: 0.000005 },
 }
+
 
 /**
  * Anthropic Provider implementation

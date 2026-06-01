@@ -20,11 +20,13 @@ export default function UsagePage() {
     timeRange: '24h' as '24h' | '7d' | '30d',
   })
 
-  // Provider-specific models
+  // Provider-specific models (current as of 2026)
   const modelsByProvider: Record<string, string[]> = {
-    openai: ['gpt-4-turbo', 'gpt-3.5-turbo', 'gpt-4', 'gpt-4-32k'],
-    anthropic: ['claude-3-opus', 'claude-3-sonnet', 'claude-3-haiku', 'claude-2.1'],
-    cohere: ['command-r', 'command-r-plus', 'command', 'command-light'],
+    openai:    ['gpt-4o', 'gpt-4.1', 'gpt-4o-mini', 'gpt-4.1-nano'],
+    anthropic: ['claude-opus-4-8', 'claude-sonnet-4-6', 'claude-haiku-4-5'],
+    google:    ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'],
+    cohere:    ['command-a-03-2025', 'command-r7b-12-2024'],
+    mistral:   ['mistral-large-latest', 'mistral-medium-latest', 'mistral-small-latest'],
   }
 
   // Get available models based on selected provider
@@ -205,7 +207,9 @@ export default function UsagePage() {
             <option value="all">All Providers</option>
             <option value="openai">OpenAI</option>
             <option value="anthropic">Anthropic</option>
+            <option value="google">Google</option>
             <option value="cohere">Cohere</option>
+            <option value="mistral">Mistral</option>
           </select>
           <select
             value={filters.model}

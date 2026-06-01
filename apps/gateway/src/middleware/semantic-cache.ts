@@ -121,13 +121,14 @@ export async function semanticCacheMiddleware(
       db.update(cacheEntries)
         .set({ hitCount: sql`${cacheEntries.hitCount} + 1` })
         .where(eq(cacheEntries.id, entry.id))
-        .catch(err => console.error('[SemanticCache] Error updating hit count:', err))
+        .execute()
+        .catch(err => request.log.error({ err }, '[SemanticCache] Error updating hit count'))
 
       // Mark as cache hit
       request.cacheHit = true
       request.cacheId = entry.id
 
-      console.log(
+      request.log.info(
         `[SemanticCache] EXACT HIT: tenant=${tenantId}, model=${model}, ` +
         `cacheId=${entry.id}, hitCount=${entry.hitCount + 1}`
       )
@@ -140,8 +141,14 @@ export async function semanticCacheMiddleware(
     }
 
     // Stage 2: Semantic similarity search
-    const embedding = await embed(prompt)
-    request.promptEmbedding = embedding
+    let embedding: number[]
+    try {
+      embedding = await embed(prompt)
+      request.promptEmbedding = embedding
+    } catch (embedError) {
+      request.log.warn({ err: embedError }, '[SemanticCache] Embedding generation failed')
+      return
+    }
 
     // pgvector cosine similarity query
     // <=> operator returns cosine distance (0 = identical, 2 = opposite)
@@ -168,13 +175,14 @@ export async function semanticCacheMiddleware(
       db.update(cacheEntries)
         .set({ hitCount: sql`${cacheEntries.hitCount} + 1` })
         .where(eq(cacheEntries.id, match.id))
-        .catch(err => console.error('[SemanticCache] Error updating hit count:', err))
+        .execute()
+        .catch(err => request.log.error({ err }, '[SemanticCache] Error updating hit count'))
 
       // Mark as cache hit
       request.cacheHit = true
       request.cacheId = match.id
 
-      console.log(
+      request.log.info(
         `[SemanticCache] SEMANTIC HIT: tenant=${tenantId}, model=${model}, ` +
         `cacheId=${match.id}, similarity=${match.similarity.toFixed(4)}, ` +
         `threshold=${threshold}, hitCount=${match.hit_count + 1}`
@@ -189,14 +197,14 @@ export async function semanticCacheMiddleware(
     }
 
     // Cache MISS - continue to provider
-    console.log(
+    request.log.info(
       `[SemanticCache] MISS: tenant=${tenantId}, model=${model}, ` +
       `promptLength=${prompt.length}, threshold=${threshold}`
     )
 
   } catch (error) {
     // Cache errors should never block the request
-    console.error('[SemanticCache] Error during cache lookup:', error)
+    request.log.error({ err: error }, '[SemanticCache] Error during cache lookup')
   }
 }
 

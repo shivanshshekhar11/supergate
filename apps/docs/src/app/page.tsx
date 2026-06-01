@@ -24,6 +24,12 @@ export default function HomePage() {
           SDK Reference
         </Link>
         <a
+          href={process.env.NEXT_PUBLIC_DASHBOARD_URL || 'http://localhost:3001'}
+          className="rounded-md border border-fd-border px-6 py-3 text-sm font-semibold hover:bg-fd-accent transition-colors"
+        >
+          Open Dashboard
+        </a>
+        <a
           href="https://github.com/shivanshshekhar11/supergate"
           target="_blank"
           rel="noopener noreferrer"

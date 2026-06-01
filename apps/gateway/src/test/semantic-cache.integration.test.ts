@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Semantic Cache Integration Tests
  * 
  * End-to-end tests for cache hit/miss scenarios with real database
@@ -436,6 +436,12 @@ function createMockRequest(
       messages,
       stream,
     },
+    log: {
+      info: vi.fn(),
+      error: vi.fn(),
+      warn: vi.fn(),
+      debug: vi.fn(),
+    }
   }
 }
 

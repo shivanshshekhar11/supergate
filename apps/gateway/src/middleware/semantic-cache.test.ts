@@ -61,6 +61,12 @@ describe('Semantic Cache Middleware', () => {
         messages: mockMessages,
         stream: false,
       },
+      log: {
+        info: vi.fn(),
+        error: vi.fn(),
+        warn: vi.fn(),
+        debug: vi.fn(),
+      } as any,
     }
 
     // Setup reply mock
@@ -214,7 +220,9 @@ describe('Semantic Cache Middleware', () => {
       mockDb.update.mockReturnValue({
         set: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
-            catch: vi.fn(),
+            execute: vi.fn().mockReturnValue({
+              catch: vi.fn(),
+            }),
           }),
         }),
       })
@@ -247,7 +255,9 @@ describe('Semantic Cache Middleware', () => {
       })
 
       const mockUpdate = vi.fn().mockReturnValue({
-        catch: vi.fn(),
+        execute: vi.fn().mockReturnValue({
+          catch: vi.fn(),
+        }),
       })
 
       mockDb.update.mockReturnValue({
@@ -282,7 +292,9 @@ describe('Semantic Cache Middleware', () => {
       mockDb.update.mockReturnValue({
         set: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
-            catch: vi.fn((fn) => fn(new Error('Update failed'))),
+            execute: vi.fn().mockReturnValue({
+              catch: vi.fn((fn: any) => fn(new Error('Update failed'))),
+            }),
           }),
         }),
       })
@@ -349,7 +361,9 @@ describe('Semantic Cache Middleware', () => {
       mockDb.update.mockReturnValue({
         set: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
-            catch: vi.fn(),
+            execute: vi.fn().mockReturnValue({
+              catch: vi.fn(),
+            }),
           }),
         }),
       })

@@ -30,6 +30,7 @@ declare module 'fastify' {
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 function isJwt(token: string): boolean {
+  if (token.startsWith('gw_')) return false
   // JWTs are three base64url segments separated by dots
   const parts = token.split('.')
   return parts.length === 3
@@ -78,7 +79,7 @@ export async function authMiddleware(
       await handleApiKey(token, request, reply)
     }
   } catch (error) {
-    console.error('[Auth] Unexpected error:', error)
+    request.log.error({ err: error }, '[Auth] Unexpected error')
     return reply.code(500).send({
       error: { code: 'authentication_error', message: 'An error occurred during authentication', requestId: request.id },
     })
@@ -112,7 +113,7 @@ async function handleJwt(
   }
 
   // Set RLS session variable
-  await db.execute(sql.raw(`SET LOCAL app.tenant_id = '${payload.tenantId}'`))
+  await db.execute(sql`SELECT set_config('app.tenant_id', ${payload.tenantId}, true)`)
 
   request.tenantContext = {
     tenantId:   payload.tenantId,
@@ -164,11 +165,11 @@ async function handleApiKey(
     return unauthorized(request, reply, 'invalid_api_key', 'Invalid or revoked API key')
   }
 
-  await db.execute(sql.raw(`SET LOCAL app.tenant_id = '${matched.tenantId}'`))
+  await db.execute(sql`SELECT set_config('app.tenant_id', ${matched.tenantId}, true)`)
 
   // Fire-and-forget last_used update
   db.update(apiKeys).set({ lastUsed: new Date() }).where(eq(apiKeys.id, matched.id))
-    .execute().catch(err => console.error('[Auth] Failed to update last_used:', err))
+    .execute().catch(err => request.log.error({ err }, '[Auth] Failed to update last_used'))
 
   request.tenantContext = {
     tenantId:   matched.tenantId,

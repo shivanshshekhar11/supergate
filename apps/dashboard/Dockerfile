@@ -25,6 +25,13 @@ COPY apps/dashboard ./apps/dashboard
 COPY turbo.json ./
 
 # Build schemas, then dashboard
+ARG NEXT_PUBLIC_GATEWAY_URL
+ARG NEXT_PUBLIC_DOCS_URL
+ARG NEXT_PUBLIC_BASE_URL
+ENV NEXT_PUBLIC_GATEWAY_URL=$NEXT_PUBLIC_GATEWAY_URL
+ENV NEXT_PUBLIC_DOCS_URL=$NEXT_PUBLIC_DOCS_URL
+ENV NEXT_PUBLIC_BASE_URL=$NEXT_PUBLIC_BASE_URL
+
 RUN pnpm --filter @llm-gateway/schemas build
 RUN DOCKER_BUILD=1 pnpm --filter @llm-gateway/dashboard build
 

@@ -1,0 +1,71 @@
+---
+title: Deployment & Self-Hosting
+description: Learn how to self-host the Supergate API in your own environment.
+---
+
+Supergate is 100% open-source and designed to be self-hosted. By running the Supergate API in your own VPC, you maintain complete data privacy, avoid vendor lock-in, and own your infrastructure.
+
+This guide focuses on deploying the core **Supergate Gateway API**. You can deploy it to any generic cloud provider (AWS EC2, DigitalOcean, Google Cloud Run, Render, etc.) using our Docker image.
+
+## Prerequisites
+
+To host the Supergate API, you will need:
+- A container runtime (e.g., Docker, Kubernetes, AWS ECS)
+- A **PostgreSQL** database (version 15+ with `pgvector` extension)
+- A **Redis** instance (for rate limiting and caching)
+
+## Deploying via Docker
+
+The simplest way to run the Gateway is using the official Docker image.
+
+### 1. Environment Variables
+
+Create an `.env` file with your configuration. At a minimum, you need to provide connection strings for your database and Redis, along with security keys.
+
+```bash
+# Database & Redis
+DATABASE_URL="postgresql://user:password@host:5432/supergate"
+REDIS_URL="redis://default:password@host:6379"
+
+# Security
+MASTER_ENCRYPTION_KEY="your-32-byte-base64-key"
+JWT_SECRET="your-jwt-secret-key"
+
+# LLM Provider API Keys
+OPENAI_API_KEY="sk-..."
+ANTHROPIC_API_KEY="sk-ant-..."
+```
+
+### 2. Run the Container
+
+You can pull and run the Gateway directly using Docker. The API runs on port 3000 by default.
+
+```bash
+docker run -d \
+  --name supergate-api \
+  -p 3000:3000 \
+  --env-file .env \
+  ghcr.io/shivanshshekhar11/supergate-gateway:latest
+```
+
+## Running Database Migrations
+
+Before the Gateway can start accepting requests, you must run the database migrations to set up the tables and the `pgvector` extension.
+
+You can run the migrations using the same Docker image by overriding the command:
+
+```bash
+docker run --rm \
+  --env-file .env \
+  ghcr.io/shivanshshekhar11/supergate-gateway:latest \
+  pnpm run --filter @supergate/gateway db:migrate
+```
+
+> **Note:** Ensure your PostgreSQL user has permissions to create extensions, as `pgvector` will be enabled during the migration process.
+
+## Advanced Deployments
+
+Because the Supergate Gateway is packaged as a standard Docker container, it can easily be integrated into:
+- **Serverless Containers**: Google Cloud Run, AWS App Runner
+- **Kubernetes**: Create a standard Deployment and Service to expose the API
+- **PaaS Providers**: Render, Railway, or Heroku

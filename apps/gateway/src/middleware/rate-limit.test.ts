@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Rate Limiting Middleware Unit Tests
  * 
  * Priority: HIGH
@@ -247,6 +247,12 @@ describe('Rate Limiting Middleware', () => {
         body: { messages: [{ role: 'user', content: 'Hello' }] },
         id: 'test-request-id',
         tenantContext: undefined,
+        log: {
+          info: vi.fn(),
+          error: vi.fn(),
+          warn: vi.fn(),
+          debug: vi.fn(),
+        },
       } as any
 
       const reply = createMockReply()
@@ -278,7 +284,13 @@ function createMockRequest(
       tenantTier,
       keyId: 'test-key-id',
       keyRole: 'admin',
-        authMethod: 'api_key' as const,
+      authMethod: 'api_key' as const,
+    },
+    log: {
+      info: vi.fn(),
+      error: vi.fn(),
+      warn: vi.fn(),
+      debug: vi.fn(),
     },
   } as any
 }

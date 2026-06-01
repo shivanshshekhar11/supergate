@@ -1,534 +1,652 @@
-﻿'use client'
+'use client'
 
-import { DashboardLayout } from '@/components/dashboard-layout'
-import { useAuth } from '@/contexts/auth-context'
-import { usageAPI } from '@/lib/gateway-client'
-import { useState, useEffect, useMemo } from 'react'
-import type { UsageSummary, UsageBreakdown, UsageLogsResponse, UsageChartResponse } from '@/lib/gateway-client'
+import Link from 'next/link'
 import {
-  TrendingUp, TrendingDown, Minus,
-  DollarSign, Gauge, Database, Activity,
-  ArrowRight, AlertCircle, Calendar, Filter, RefreshCw,
+  Activity,
+  Zap,
+  Shield,
+  Code,
+  DollarSign,
+  Lock,
+  BarChart3,
+  CheckCircle,
+  ArrowRight,
+  Sparkles,
+  Globe,
+  Database,
+  Key,
+  CloudCog,
+  Network,
+  CreditCard,
+  GitBranch,
+  Terminal,
+  Layers,
+  Box,
 } from 'lucide-react'
-import { LoadingSpinner } from '@/components/ui/loading-spinner'
 
-type TimeRange = '24h' | '7d' | '30d'
-
-const ALL_PROVIDERS = [
-  { id: 'all', name: 'All Providers' },
-  { id: 'openai',    name: 'OpenAI'    },
-  { id: 'anthropic', name: 'Anthropic' },
-  { id: 'google',    name: 'Google'    },
-  { id: 'cohere',    name: 'Cohere'    },
-  { id: 'mistral',   name: 'Mistral'   },
+// ── Tier data ──────────────────────────────────────────────────────────────
+const TIERS = [
+  {
+    name: 'Free',
+    badge: null,
+    price: '$0',
+    period: '/mo',
+    description: 'Get started instantly with managed gateway keys. No credit card required.',
+    color: '#e5e2e1',
+    accentClass: 'border-[#4f453f]/30',
+    features: [
+      'All 5 providers via gateway keys',
+      '50K tokens / month',
+      'Semantic caching included',
+      'Usage dashboard',
+      '1 API key',
+      'Community support',
+    ],
+    cta: 'Start for Free',
+    ctaClass: 'bg-[#353534] hover:bg-[#393939] text-[#e5e2e1] border border-[#4f453f]/20',
+    href: '/register',
+  },
+  {
+    name: 'Pro',
+    badge: 'Most Popular',
+    price: '$29',
+    period: '/mo',
+    description: 'For teams building real products. Generous limits, full analytics.',
+    color: '#ffba38',
+    accentClass: 'border-[#ffba38]/40',
+    features: [
+      'Everything in Free',
+      '5M tokens / month',
+      'Priority routing',
+      'BYOK per provider',
+      'Up to 10 API keys',
+      'Full usage telemetry',
+      'Cost attribution per key',
+      'Email support',
+    ],
+    cta: 'Get Pro',
+    ctaClass: 'bg-gradient-to-br from-[#ffba38] to-[#c78b00] text-[#281900] hover:shadow-[0_0_24px_rgba(255,186,56,0.35)]',
+    href: '/register',
+  },
+  {
+    name: 'Enterprise',
+    badge: null,
+    price: 'Custom',
+    period: '',
+    description: 'Full isolation, compliance controls, and dedicated infrastructure.',
+    color: '#e2bfb0',
+    accentClass: 'border-[#e2bfb0]/20',
+    features: [
+      'Everything in Pro',
+      'Unlimited tokens',
+      'Enterprise-Independent mode (BYOK-only)',
+      'Private VPC deployment',
+      'SSO / SAML',
+      'SLA guarantee',
+      'Dedicated Slack channel',
+      'Custom data retention policies',
+    ],
+    cta: 'Contact Sales',
+    ctaClass: 'bg-[#5a4136] hover:bg-[#6a5146] text-[#e2bfb0] border border-[#e2bfb0]/20',
+    href: '/register',
+  },
 ]
 
-// Map dashboard TimeRange to the period param used by summary/breakdown endpoints
-function toPeriod(tr: TimeRange): 'daily' | 'weekly' | 'monthly' {
-  if (tr === '24h') return 'daily'
-  if (tr === '7d')  return 'weekly'
-  return 'monthly'
-}
+// ── Provider data ──────────────────────────────────────────────────────────
+const PROVIDERS = [
+  {
+    name: 'OpenAI',
+    models: ['GPT-4o', 'GPT-4.1', 'GPT-4o Mini', 'GPT-4.1 Nano'],
+    icon: Sparkles,
+    accent: '#ffba38',
+    description: 'The most capable frontier models for complex reasoning and generation.',
+  },
+  {
+    name: 'Anthropic',
+    models: ['Claude Opus 4.8', 'Claude Sonnet 4.6', 'Claude Haiku 4.5'],
+    icon: Activity,
+    accent: '#e2bfb0',
+    description: 'Safety-first models with exceptional instruction following and analysis.',
+  },
+  {
+    name: 'Google',
+    models: ['Gemini 2.5 Pro', 'Gemini 2.5 Flash', 'Gemini 2.5 Flash Lite'],
+    icon: CloudCog,
+    accent: '#ffba38',
+    description: 'Multimodal-first models with massive context windows at low cost.',
+  },
+  {
+    name: 'Cohere',
+    models: ['Command A (03-2025)', 'Command R7B'],
+    icon: Network,
+    accent: '#e2bfb0',
+    description: 'RAG-optimised models built for enterprise search and retrieval.',
+  },
+  {
+    name: 'Mistral',
+    models: ['Mistral Large 3', 'Mistral Medium 3.5', 'Mistral Small 4'],
+    icon: Zap,
+    accent: '#ffba38',
+    description: 'European open-weight models with strong multilingual performance.',
+  },
+]
 
-export default function DashboardPage() {
-  const { token } = useAuth()
-  const [isLoading, setIsLoading]   = useState(true)
-  const [error, setError]           = useState<string | null>(null)
+// ── Feature data ──────────────────────────────────────────────────────────
+const FEATURES = [
+  {
+    icon: Network,
+    title: 'OpenAI-Compatible Endpoint',
+    description: 'A single `/v1/chat/completions` endpoint handles all 5 providers. Change one string and your app routes to any model — no SDK changes, no adapter layers.',
+    tag: 'Unified API',
+  },
+  {
+    icon: Database,
+    title: 'Semantic Caching via pgvector',
+    description: 'Vector-similarity caching means near-duplicate prompts serve cached responses instantly. Cut your token spend by 30–50% with zero application changes.',
+    tag: 'Cost Reduction',
+  },
+  {
+    icon: Shield,
+    title: 'Row-Level Tenant Isolation',
+    description: 'Every query is scoped to a tenant ID enforced at the database level. Tenants cannot see each other\'s data, keys, or usage — ever.',
+    tag: 'Multi-Tenancy',
+  },
+  {
+    icon: BarChart3,
+    title: 'Per-Key Cost Attribution',
+    description: 'Every request logs model, provider, input/output tokens, latency, and dollar cost — attributed to the specific API key that made it.',
+    tag: 'Observability',
+  },
+  {
+    icon: Key,
+    title: 'Hybrid Key Management',
+    description: 'Use our managed gateway keys for instant access, or store your own provider credentials with AES-256-GCM encryption. BYOK keys take precedence automatically.',
+    tag: 'Security',
+  },
+  {
+    icon: GitBranch,
+    title: 'Self-Hosted & Open Source',
+    description: 'Deploy on your own infrastructure with a single `docker compose up`. MIT licensed. No vendor lock-in, no egress fees, no surprise bills.',
+    tag: 'Open Source',
+  },
+]
 
-  // Filters
-  const [timeRange, setTimeRange]         = useState<TimeRange>('7d')
-  const [providerFilter, setProviderFilter] = useState<string>('all')
-  const [showTimeMenu, setShowTimeMenu]   = useState(false)
-  const [showProvMenu, setShowProvMenu]   = useState(false)
-
-  const [usageSummary,   setUsageSummary]   = useState<UsageSummary | null>(null)
-  const [usageBreakdown, setUsageBreakdown] = useState<UsageBreakdown | null>(null)
-  const [chartData,      setChartData]      = useState<UsageChartResponse | null>(null)
-  const [recentLogs,     setRecentLogs]     = useState<UsageLogsResponse | null>(null)
-
-  // Re-fetch whenever either filter changes
-  useEffect(() => {
-    if (!token) { setError('Not authenticated.'); setIsLoading(false); return }
-
-    let cancelled = false
-    async function load() {
-      try {
-        setIsLoading(true)
-        setError(null)
-
-        const period = toPeriod(timeRange)
-        const logsTimeRange = timeRange  // already '24h'|'7d'|'30d'
-
-        const [summary, breakdown, chart, logs] = await Promise.all([
-          usageAPI.getSummary(token!, period),
-          usageAPI.getBreakdown(token!, period, providerFilter),
-          usageAPI.getChart(token!, timeRange, providerFilter),
-          usageAPI.getLogs(token!, { pageSize: 5, timeRange: logsTimeRange, provider: providerFilter }),
-        ])
-
-        if (cancelled) return
-        setUsageSummary(summary)
-        setUsageBreakdown(breakdown)
-        setChartData(chart)
-        setRecentLogs(logs)
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load dashboard data')
-      } finally {
-        if (!cancelled) setIsLoading(false)
-      }
-    }
-
-    load()
-    return () => { cancelled = true }
-  }, [token, timeRange, providerFilter])
-
-  // Close dropdowns on outside click
-  useEffect(() => {
-    function onOutside(e: MouseEvent) {
-      if (!(e.target as HTMLElement).closest('.menu-container')) {
-        setShowTimeMenu(false)
-        setShowProvMenu(false)
-      }
-    }
-    document.addEventListener('mousedown', onOutside)
-    return () => document.removeEventListener('mousedown', onOutside)
-  }, [])
-
-  // Derive buckets early so metrics can use them
-  const buckets: UsageChartResponse['buckets'] = chartData?.buckets ?? []
-
-  // Metrics — derived from chart buckets (already filtered by provider + time range server-side)
-  // avgLatency and cacheHitRate come from buckets so they respect both filters.
-  const metrics = useMemo(() => {
-    const totalCost    = usageBreakdown?.reduce((s, i) => s + i.costUsd, 0) ?? 0
-    const totalTokens  = usageBreakdown?.reduce((s, i) => s + i.inputTokens + i.outputTokens, 0) ?? 0
-
-    const totalReqs    = buckets.reduce((s, b) => s + b.requests, 0)
-    const totalCache   = buckets.reduce((s, b) => s + b.cacheHits, 0)
-    const cacheHitRate = totalReqs > 0 ? Math.round((totalCache / totalReqs) * 100) : 0
-
-    // Weighted average latency across buckets that have requests
-    const weightedLatency = buckets.reduce((s, b) => s + b.avgLatencyMs * b.requests, 0)
-    const avgLatency      = totalReqs > 0 ? Math.round(weightedLatency / totalReqs) : 0
-
-    return { totalCost, avgLatency, cacheHitRate, tokensProcessed: totalTokens / 1_000_000 }
-  }, [usageBreakdown, buckets])
-
-  // Cost by provider — already server-filtered, just aggregate by provider name
-  const providerCosts = useMemo(() => {
-    if (!usageBreakdown || usageBreakdown.length === 0) return []
-    const map = new Map<string, number>()
-    usageBreakdown.forEach(item => map.set(item.provider, (map.get(item.provider) ?? 0) + item.costUsd))
-    const total = Array.from(map.values()).reduce((s, v) => s + v, 0)
-    return Array.from(map.entries())
-      .map(([provider, cost]) => ({ provider, cost, percentage: total > 0 ? Math.round((cost / total) * 100) : 0 }))
-      .sort((a, b) => b.cost - a.cost)
-      .slice(0, 5)
-  }, [usageBreakdown])
-
-  // Trend helpers
-  const calculateTrend = (days: { costUsd: number; requests: number }[] | undefined, metric: 'cost' | 'requests') => {
-    if (!days || days.length < 2) return { value: 0, direction: 'flat' as const }
-    const last = days[days.length - 1]
-    const prev = days.slice(0, -1)
-    const avg = prev.reduce((s, d) => s + (metric === 'cost' ? d.costUsd : d.requests), 0) / prev.length
-    if (avg === 0) return { value: 0, direction: 'flat' as const }
-    const change = ((( metric === 'cost' ? last.costUsd : last.requests) - avg) / avg) * 100
-    if (Math.abs(change) < 1) return { value: 0, direction: 'flat' as const }
-    return { value: Math.abs(Math.round(change)), direction: change > 0 ? 'up' as const : 'down' as const }
-  }
-
-  const trends = {
-    cost:    calculateTrend(usageSummary?.days, 'cost'),
-    tokens:  calculateTrend(usageSummary?.days, 'requests'),
-    latency: { value: 0, direction: 'flat' as const },
-    cache:   { value: 0, direction: 'flat' as const },
-  }
-
-  const comparisonText = timeRange === '24h' ? 'vs yesterday' : timeRange === '7d' ? 'vs last week' : 'vs last month'
-  const timeLabel      = timeRange === '24h' ? 'Last 24 Hours' : timeRange === '7d' ? 'Last 7 Days' : 'Last 30 Days'
-  const periodLabel    = timeRange === '24h' ? 'Last 24 hours' : timeRange === '7d' ? 'Last 7 days' : 'Last 30 days'
-
-  const TrendIcon = ({ direction }: { direction: 'up' | 'down' | 'flat' }) =>
-    direction === 'up' ? <TrendingUp className="w-3 h-3" /> :
-    direction === 'down' ? <TrendingDown className="w-3 h-3" /> :
-    <Minus className="w-3 h-3" />
-
-  const trendColor = (direction: 'up' | 'down' | 'flat', isGood: boolean) => {
-    if (direction === 'flat') return 'text-[#e5e2e1]/60'
-    return (direction === 'up') === isGood ? 'text-emerald-400' : 'text-[#ffb4ab]'
-  }
-
-  const recentRequests = useMemo(() => (recentLogs?.logs ?? []).map(log => ({
-    status:     log.statusCode === 200 ? '200 OK' : log.statusCode === 429 ? '429 Rate Limited' : `${log.statusCode} Error`,
-    statusType: log.statusCode === 200 ? 'success' as const : 'error' as const,
-    provider:   log.provider,
-    model:      log.model,
-    latency:    log.cached ? 'CACHE HIT' : `${log.latencyMs}ms`,
-    cost:       `$${log.costUsd.toFixed(4)}`,
-    timestamp:  new Date(log.createdAt).toLocaleTimeString(),
-    cached:     log.cached,
-  })), [recentLogs])
-
-  // ── Loading / Error / Empty ──────────────────────────────────────────────────
-
-  if (isLoading) return (
-    <DashboardLayout>
-      <div className="flex items-center justify-center h-[60vh]">
-        <div className="text-center">
-          <LoadingSpinner size="lg" />
-          <p className="mt-4 text-[#e5e2e1]/60" style={{ fontFamily: 'Manrope, sans-serif' }}>Loading dashboard data...</p>
-        </div>
-      </div>
-    </DashboardLayout>
-  )
-
-  if (error) return (
-    <DashboardLayout>
-      <div className="flex items-center justify-center h-[60vh]">
-        <div className="text-center max-w-md">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#93000a]/20 mb-4">
-            <AlertCircle className="w-8 h-8 text-[#ffb4ab]" />
-          </div>
-          <h2 className="text-2xl font-bold text-[#e5e2e1] mb-2" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Failed to Load Dashboard</h2>
-          <p className="text-[#e5e2e1]/60 mb-6" style={{ fontFamily: 'Manrope, sans-serif' }}>{error}</p>
-          <button onClick={() => window.location.reload()} className="bg-gradient-to-br from-[#ffba38] to-[#c78b00] text-[#281900] px-6 py-2 rounded-md font-medium hover:shadow-[0_0_20px_rgba(255,186,56,0.3)] transition-all">Retry</button>
-        </div>
-      </div>
-    </DashboardLayout>
-  )
-
-  if (!usageSummary || usageSummary.totalRequests === 0) return (
-    <DashboardLayout>
-      <div className="flex items-center justify-center h-[60vh]">
-        <div className="text-center max-w-md">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#ffba38]/10 mb-4">
-            <Activity className="w-8 h-8 text-[#ffba38]" />
-          </div>
-          <h2 className="text-2xl font-bold text-[#e5e2e1] mb-2" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>No Data Yet</h2>
-          <p className="text-[#e5e2e1]/60 mb-6" style={{ fontFamily: 'Manrope, sans-serif' }}>Start making requests to your gateway to see analytics here.</p>
-          <a href="http://localhost:3000/docs" target="_blank" rel="noopener noreferrer" className="inline-block bg-gradient-to-br from-[#ffba38] to-[#c78b00] text-[#281900] px-6 py-2 rounded-md font-medium hover:shadow-[0_0_20px_rgba(255,186,56,0.3)] transition-all">View API Docs</a>
-        </div>
-      </div>
-    </DashboardLayout>
-  )
-
-  const maxVolume    = Math.max(...buckets.map((b: UsageChartResponse['buckets'][number]) => b.requests), 1)
-  const providerName = ALL_PROVIDERS.find(p => p.id === providerFilter)?.name ?? 'All Providers'
-
+export default function LandingPage() {
   return (
-    <DashboardLayout>
-      {/* Header */}
-      <div className="mb-8 flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
-        <div>
-          <h1 className="text-4xl sm:text-5xl font-bold text-[#e5e2e1] tracking-[-0.02em] leading-none mb-2" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Dashboard</h1>
-          <p className="text-[#e5e2e1]/70 text-base sm:text-lg tracking-[0.01em]" style={{ fontFamily: 'Manrope, sans-serif' }}>Overview of LLM Gateway performance and consumption.</p>
+    <div className="min-h-screen bg-[#131313]">
+      {/* Navigation */}
+      <nav className="fixed top-0 w-full z-50 bg-[#131313]/80 backdrop-blur-xl border-b border-[#4f453f]/10">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+          <div className="flex items-center gap-2.5">
+            <div className="rounded-[6px] bg-gradient-to-br from-[#ffba38] to-[#c78b00] p-2">
+              <Activity className="w-4 h-4 text-[#281900]" strokeWidth={2.5} />
+            </div>
+            <span className="text-lg font-bold text-[#e5e2e1] tracking-[-0.02em]" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+              Supergate
+            </span>
+          </div>
+          <div className="hidden md:flex items-center gap-8 text-sm" style={{ fontFamily: 'Manrope, sans-serif' }}>
+            <a href="#features" className="text-[#e5e2e1]/60 hover:text-[#e5e2e1] transition-colors">Features</a>
+            <a href="#providers" className="text-[#e5e2e1]/60 hover:text-[#e5e2e1] transition-colors">Models</a>
+            <a href="#pricing" className="text-[#e5e2e1]/60 hover:text-[#e5e2e1] transition-colors">Pricing</a>
+            <Link href="/docs" className="text-[#e5e2e1]/60 hover:text-[#e5e2e1] transition-colors">Docs</Link>
+          </div>
+          <div className="flex items-center gap-4">
+            <Link href="/login" className="text-sm text-[#e5e2e1]/60 hover:text-[#e5e2e1] transition-colors" style={{ fontFamily: 'Manrope, sans-serif' }}>
+              Sign in
+            </Link>
+            <Link href="/register">
+              <button className="bg-gradient-to-br from-[#ffba38] to-[#c78b00] text-[#281900] px-4 py-2 rounded-md font-semibold text-sm hover:shadow-[0_0_20px_rgba(255,186,56,0.3)] transition-all" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+                Get started
+              </button>
+            </Link>
+          </div>
         </div>
+      </nav>
 
-        <div className="flex flex-wrap gap-2 sm:gap-3">
-          <button onClick={() => window.location.reload()} className="flex items-center gap-2 bg-[#1c1b1b] hover:bg-[#353534] text-[#e5e2e1] px-3 sm:px-4 py-2 rounded-md transition-colors border border-[#4f453f]/15">
-            <RefreshCw className="w-4 h-4" /><span className="text-sm font-medium hidden sm:inline">Refresh</span>
-          </button>
+      <main className="pt-20">
 
-          {/* Time Range */}
-          <div className="relative menu-container">
-            <button onClick={() => setShowTimeMenu(!showTimeMenu)} className="flex items-center gap-2 bg-[#1c1b1b] hover:bg-[#353534] text-[#e5e2e1] px-4 py-2 rounded-md transition-colors border border-[#4f453f]/15">
-              <Calendar className="w-4 h-4" /><span className="text-sm font-medium">{timeLabel}</span>
-            </button>
-            {showTimeMenu && (
-              <div className="absolute right-0 mt-2 w-48 bg-[#131313] border border-[#4f453f]/20 rounded-md shadow-xl z-50">
-                {(['24h', '7d', '30d'] as const).map(r => (
-                  <button key={r} onClick={() => { setTimeRange(r); setShowTimeMenu(false) }}
-                    className={`w-full text-left px-4 py-2 text-sm hover:bg-[#1c1b1b] transition-colors ${timeRange === r ? 'text-[#ffba38]' : 'text-[#e5e2e1]'}`}>
-                    {r === '24h' ? 'Last 24 Hours' : r === '7d' ? 'Last 7 Days' : 'Last 30 Days'}
-                  </button>
-                ))}
+        {/* ── Hero ──────────────────────────────────────────────────────────── */}
+        <section className="relative flex flex-col items-center justify-center text-center px-6 pt-24 pb-20 overflow-hidden">
+          {/* Ambient glow */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] bg-[#ffba38]/8 blur-[120px] rounded-full pointer-events-none" />
+
+          <div className="relative z-10 max-w-4xl mx-auto">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#5a4136]/60 border border-[#ffba38]/20 text-[#e2bfb0] text-[11px] font-semibold tracking-[0.1em] uppercase mb-8">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#ffba38] animate-pulse" />
+              5 Providers · 1 Endpoint · Open Source
+            </div>
+
+            <h1 className="text-5xl md:text-7xl font-bold tracking-[-0.03em] leading-[1.05] text-[#e5e2e1] mb-6" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+              One gateway for<br />
+              <span className="bg-gradient-to-r from-[#ffba38] to-[#c78b00] bg-clip-text text-transparent">
+                every frontier model.
+              </span>
+            </h1>
+
+            <p className="text-lg md:text-xl text-[#e5e2e1]/60 max-w-2xl mx-auto mb-10 leading-relaxed" style={{ fontFamily: 'Manrope, sans-serif' }}>
+              Supergate is a self-hosted LLM proxy that routes to OpenAI, Anthropic, Google, Cohere, and Mistral through a single OpenAI-compatible API — with semantic caching, multi-tenancy, BYOK, and per-key cost tracking built in.
+            </p>
+
+            <div className="flex flex-wrap justify-center gap-4 mb-16">
+              <Link href="/register">
+                <button className="flex items-center gap-2 bg-gradient-to-br from-[#ffba38] to-[#c78b00] text-[#281900] px-6 py-3.5 rounded-md font-bold text-base hover:shadow-[0_0_30px_rgba(255,186,56,0.3)] transition-all" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+                  Deploy in 5 minutes <ArrowRight className="w-4 h-4" />
+                </button>
+              </Link>
+              <a href="https://github.com/shivanshshekhar11/supergate" target="_blank" rel="noopener noreferrer">
+                <button className="flex items-center gap-2 bg-[#1c1b1b] border border-[#4f453f]/20 text-[#e5e2e1] px-6 py-3.5 rounded-md font-semibold text-base hover:bg-[#353534] transition-all" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+                  <Code className="w-4 h-4" /> View on GitHub
+                </button>
+              </a>
+            </div>
+
+            {/* Code snippet */}
+            <div className="bg-[#0e0e0e] border border-[#4f453f]/20 rounded-xl overflow-hidden text-left max-w-2xl mx-auto shadow-2xl">
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-[#4f453f]/20 bg-[#1c1b1b]">
+                <div className="flex gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#ff5f56]" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#ffbd2e]" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#27c93f]" />
+                </div>
+                <span className="text-[#e5e2e1]/30 text-xs font-mono ml-2">example.ts</span>
               </div>
-            )}
+              <pre className="p-5 text-sm font-mono overflow-x-auto leading-relaxed text-[#e5e2e1]/80">
+                <span className="text-[#e5e2e1]/30">{'// One client. Any model. Zero provider SDKs.'}</span>{'\n'}
+                <span className="text-[#c792ea]">const</span>{' '}
+                <span className="text-[#e5e2e1]">client</span>{' '}
+                <span className="text-[#89ddff]">=</span>{' '}
+                <span className="text-[#82aaff]">new</span>{' '}
+                <span className="text-[#ffba38]">OpenAI</span>
+                {'({\n'}
+                {'  '}
+                <span className="text-[#e5e2e1]/60">baseURL</span>
+                {': '}
+                <span className="text-[#c3e88d]">&apos;https://your-gateway/v1&apos;</span>
+                {',\n'}
+                {'  '}
+                <span className="text-[#e5e2e1]/60">apiKey</span>
+                {': '}
+                <span className="text-[#c3e88d]">&apos;gw_your_api_key&apos;</span>
+                {',\n})\n\n'}
+                <span className="text-[#e5e2e1]/30">{'// Route to GPT-4o'}</span>{'\n'}
+                <span className="text-[#89ddff]">await</span>{' '}
+                <span className="text-[#e5e2e1]">client</span>
+                {'.chat.completions.create({ '}
+                <span className="text-[#e5e2e1]/60">model</span>
+                {': '}
+                <span className="text-[#c3e88d]">&apos;gpt-4o&apos;</span>
+                {' })\n'}
+                <span className="text-[#e5e2e1]/30">{'// Route to Claude Opus 4.8 — same client'}</span>{'\n'}
+                <span className="text-[#89ddff]">await</span>{' '}
+                <span className="text-[#e5e2e1]">client</span>
+                {'.chat.completions.create({ '}
+                <span className="text-[#e5e2e1]/60">model</span>
+                {': '}
+                <span className="text-[#c3e88d]">&apos;claude-opus-4-8&apos;</span>
+                {' })'}
+              </pre>
+            </div>
           </div>
+        </section>
 
-          {/* Provider */}
-          <div className="relative menu-container">
-            <button onClick={() => setShowProvMenu(!showProvMenu)} className="flex items-center gap-2 bg-[#1c1b1b] hover:bg-[#353534] text-[#e5e2e1] px-4 py-2 rounded-md transition-colors border border-[#4f453f]/15">
-              <Filter className="w-4 h-4" /><span className="text-sm font-medium">{providerName}</span>
-            </button>
-            {showProvMenu && (
-              <div className="absolute right-0 mt-2 w-48 bg-[#131313] border border-[#4f453f]/20 rounded-md shadow-xl z-50">
-                {ALL_PROVIDERS.map(p => (
-                  <button key={p.id} onClick={() => { setProviderFilter(p.id); setShowProvMenu(false) }}
-                    className={`w-full text-left px-4 py-2 text-sm hover:bg-[#1c1b1b] transition-colors ${providerFilter === p.id ? 'text-[#ffba38]' : 'text-[#e5e2e1]'}`}>
-                    {p.name}
-                  </button>
-                ))}
+        {/* ── Stats bar ─────────────────────────────────────────────────────── */}
+        <section className="border-y border-[#4f453f]/15 bg-[#1c1b1b]">
+          <div className="max-w-7xl mx-auto px-6 py-8 grid grid-cols-2 md:grid-cols-4 gap-px divide-x divide-[#4f453f]/15">
+            {[
+              { value: '5', label: 'LLM Providers' },
+              { value: '15', label: 'Current Models' },
+              { value: '~40%', label: 'Avg. Cost Saved via Cache' },
+              { value: 'MIT', label: 'License · Self-Hostable' },
+            ].map((stat, i) => (
+              <div key={i} className="flex flex-col items-center justify-center py-4 px-6 text-center">
+                <div className="text-3xl font-bold text-[#ffba38] tracking-tight" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>{stat.value}</div>
+                <div className="text-xs text-[#e5e2e1]/50 mt-1" style={{ fontFamily: 'Manrope, sans-serif' }}>{stat.label}</div>
               </div>
-            )}
+            ))}
           </div>
-        </div>
-      </div>
-      {/* Metric Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div className="bg-[#353534] p-6 rounded-lg relative overflow-hidden group">
-          <div className="absolute -right-6 -top-6 w-24 h-24 bg-[#ffba38]/5 rounded-full blur-2xl group-hover:bg-[#ffba38]/10 transition-all duration-500" />
-          <div className="flex justify-between items-start mb-4">
-            <span className="text-[#e5e2e1]/60 text-xs uppercase tracking-[0.2em] font-medium" style={{ fontFamily: 'Inter, sans-serif' }}>Total Cost</span>
-            <DollarSign className="w-5 h-5 text-[#ffba38]" />
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-5xl font-bold text-[#e5e2e1] tracking-tighter" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>${metrics.totalCost.toFixed(2)}</span>
-          </div>
-          <div className="mt-2 flex items-center gap-1 text-sm">
-            <span className={`flex items-center gap-0.5 ${trendColor(trends.cost.direction, false)}`}><TrendIcon direction={trends.cost.direction} />{trends.cost.value}%</span>
-            <span className="text-[#e5e2e1]/60 ml-1">{comparisonText}</span>
-          </div>
-        </div>
+        </section>
 
-        <div className="bg-[#1c1b1b] p-6 rounded-lg relative overflow-hidden group">
-          <div className="absolute -right-6 -top-6 w-24 h-24 bg-[#e2bfb0]/5 rounded-full blur-2xl group-hover:bg-[#e2bfb0]/10 transition-all duration-500" />
-          <div className="flex justify-between items-start mb-4">
-            <span className="text-[#e5e2e1]/60 text-xs uppercase tracking-[0.2em] font-medium" style={{ fontFamily: 'Inter, sans-serif' }}>Avg. Latency</span>
-            <Gauge className="w-5 h-5 text-[#e2bfb0]" />
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-5xl font-bold text-[#e5e2e1] tracking-tighter" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>{Math.round(metrics.avgLatency)}</span>
-            <span className="text-[#e5e2e1]/60 font-medium">ms</span>
-          </div>
-          <div className="mt-2 flex items-center gap-1 text-sm">
-            <span className={`flex items-center gap-0.5 ${trendColor(trends.latency.direction, false)}`}><TrendIcon direction={trends.latency.direction} />{trends.latency.value}%</span>
-            <span className="text-[#e5e2e1]/60 ml-1">{comparisonText}</span>
-          </div>
-        </div>
+        {/* ── Features ──────────────────────────────────────────────────────── */}
+        <section id="features" className="py-28 px-6">
+          <div className="max-w-7xl mx-auto">
+            <div className="mb-16 max-w-2xl">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-[#ffba38] font-semibold mb-3" style={{ fontFamily: 'Inter, sans-serif' }}>Built different</p>
+              <h2 className="text-4xl md:text-5xl font-bold text-[#e5e2e1] tracking-[-0.02em] leading-tight mb-4" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+                Everything you need.<br />Nothing you don&apos;t.
+              </h2>
+              <p className="text-[#e5e2e1]/60 text-lg leading-relaxed" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                Supergate covers the hard parts of production LLM infrastructure — so you can focus on building your product.
+              </p>
+            </div>
 
-        <div className="bg-[#1c1b1b] p-6 rounded-lg relative overflow-hidden group">
-          <div className="absolute -right-6 -top-6 w-24 h-24 bg-[#e9c349]/5 rounded-full blur-2xl group-hover:bg-[#e9c349]/10 transition-all duration-500" />
-          <div className="flex justify-between items-start mb-4">
-            <span className="text-[#e5e2e1]/60 text-xs uppercase tracking-[0.2em] font-medium" style={{ fontFamily: 'Inter, sans-serif' }}>Cache Hit Rate</span>
-            <Database className="w-5 h-5 text-[#e9c349]" />
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-5xl font-bold text-[#e5e2e1] tracking-tighter" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>{metrics.cacheHitRate}</span>
-            <span className="text-[#e5e2e1]/60 font-medium">%</span>
-          </div>
-          <div className="mt-2 flex items-center gap-1 text-sm">
-            <span className={`flex items-center gap-0.5 ${trendColor(trends.cache.direction, true)}`}><TrendIcon direction={trends.cache.direction} />{trends.cache.value}%</span>
-            <span className="text-[#e5e2e1]/60 ml-1">{comparisonText}</span>
-          </div>
-        </div>
-
-        <div className="bg-[#1c1b1b] p-6 rounded-lg relative overflow-hidden group">
-          <div className="absolute -right-6 -top-6 w-24 h-24 bg-[#e5e2e1]/5 rounded-full blur-2xl group-hover:bg-[#e5e2e1]/10 transition-all duration-500" />
-          <div className="flex justify-between items-start mb-4">
-            <span className="text-[#e5e2e1]/60 text-xs uppercase tracking-[0.2em] font-medium" style={{ fontFamily: 'Inter, sans-serif' }}>Tokens Processed</span>
-            <Activity className="w-5 h-5 text-[#e5e2e1]/60" />
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-5xl font-bold text-[#e5e2e1] tracking-tighter" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>{metrics.tokensProcessed.toFixed(2)}</span>
-            <span className="text-[#e5e2e1]/60 font-medium">M</span>
-          </div>
-          <div className="mt-2 flex items-center gap-1 text-sm">
-            <span className={`flex items-center gap-0.5 ${trendColor(trends.tokens.direction, true)}`}><TrendIcon direction={trends.tokens.direction} />{trends.tokens.value}%</span>
-            <span className="text-[#e5e2e1]/60 ml-1">{comparisonText}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        {/* Request Volume Chart */}
-        <div className="lg:col-span-2 bg-[#0e0e0e] rounded-lg p-6 flex flex-col relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-[#0e0e0e] via-[#ffba38]/20 to-[#0e0e0e]" />
-          <div className="flex justify-between items-start mb-1">
-            <h2 className="text-2xl font-bold text-[#e5e2e1] tracking-[-0.01em]" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
-              Request Volume vs. Cache Hits
-            </h2>
-            {providerFilter !== 'all' && (
-              <span className="text-sm text-[#ffba38] font-medium mt-1">{providerName}</span>
-            )}
-          </div>
-          <p className="text-xs text-[#e5e2e1]/40 mb-4" style={{ fontFamily: 'Manrope, sans-serif' }}>{periodLabel}</p>
-
-          {/* Legend + period totals */}
-          {buckets.length > 0 && (() => {
-            const totalReqs  = buckets.reduce((s, b) => s + b.requests, 0)
-            const totalCache = buckets.reduce((s, b) => s + b.cacheHits, 0)
-            const hitRate    = totalReqs > 0 ? Math.round((totalCache / totalReqs) * 100) : 0
-            return (
-              <div className="flex items-center justify-between mb-5">
-                <div className="flex items-center gap-5">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-3 h-3 rounded-sm bg-[#353534] inline-block" />
-                    <span className="text-xs text-[#e5e2e1]/50" style={{ fontFamily: 'Manrope, sans-serif' }}>Total requests</span>
-                    <span className="text-xs font-mono text-[#e5e2e1]/70 ml-1">{totalReqs.toLocaleString()}</span>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {FEATURES.map((f, i) => (
+                <div key={i} className="bg-[#1c1b1b] border border-[#4f453f]/15 rounded-xl p-7 hover:border-[#ffba38]/20 hover:-translate-y-1 transition-all duration-300 group">
+                  <div className="flex items-start justify-between mb-5">
+                    <div className="w-10 h-10 bg-[#5a4136]/50 rounded-lg flex items-center justify-center">
+                      <f.icon className="w-5 h-5 text-[#ffba38]" />
+                    </div>
+                    <span className="text-[10px] uppercase tracking-[0.12em] text-[#e5e2e1]/30 font-semibold" style={{ fontFamily: 'Inter, sans-serif' }}>{f.tag}</span>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-3 h-3 rounded-sm bg-[#ffba38]/60 inline-block" />
-                    <span className="text-xs text-[#e5e2e1]/50" style={{ fontFamily: 'Manrope, sans-serif' }}>Cache hits</span>
-                    <span className="text-xs font-mono text-[#ffba38] ml-1">{totalCache.toLocaleString()}</span>
-                  </div>
+                  <h3 className="text-lg font-bold text-[#e5e2e1] mb-2" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>{f.title}</h3>
+                  <p className="text-sm text-[#e5e2e1]/55 leading-relaxed" style={{ fontFamily: 'Manrope, sans-serif' }}>{f.description}</p>
                 </div>
-                <span className="text-xs font-mono text-[#e5e2e1]/50">
-                  hit rate <span className="text-[#ffba38] font-semibold">{hitRate}%</span>
-                </span>
-              </div>
-            )
-          })()}
+              ))}
+            </div>
+          </div>
+        </section>
 
-          {buckets.length > 0 ? (
-            <>
-              {/* Bars */}
-              <div className="flex-1 min-h-[280px] relative flex items-end gap-1 pb-6 border-b border-[#4f453f]/15">
-                {/* Y-axis */}
-                <div className="absolute left-0 top-0 h-full flex flex-col justify-between text-[10px] text-[#e5e2e1]/40 font-mono pb-6 pr-2 w-10">
-                  <span>{maxVolume}</span>
-                  <span>{Math.round(maxVolume * 0.5)}</span>
-                  <span>0</span>
-                </div>
-                {/* Grid lines */}
-                <div className="absolute left-10 right-0 top-0 h-full flex flex-col justify-between pb-6 pointer-events-none">
-                  <div className="w-full border-t border-[#4f453f]/10" />
-                  <div className="w-full border-t border-[#4f453f]/10" />
-                  <div className="w-full" />
-                </div>
-                {/* Bar columns */}
-                <div className="flex-1 flex items-end gap-1 h-full ml-10">
-                {buckets.map((bucket: UsageChartResponse['buckets'][number], i: number) => {
-                    const heightPct = maxVolume > 0 ? (bucket.requests / maxVolume) * 100 : 0
-                    const cachePct  = bucket.requests > 0 ? (bucket.cacheHits / bucket.requests) * 100 : 0
-                    return (
-                      <div key={i} className="flex-1 relative group flex items-end" style={{ height: `${Math.max(heightPct, bucket.requests > 0 ? 2 : 0)}%` }}>
-                        <div className="w-full h-full bg-[#353534] rounded-t-sm hover:bg-[#393939] transition-colors relative">
-                          <div className="absolute bottom-0 w-full bg-[#ffba38]/60 rounded-t-sm" style={{ height: `${cachePct}%` }} />
-                        </div>
-                        {/* Tooltip */}
-                        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-[#131313] px-2 py-1.5 rounded text-[10px] whitespace-nowrap shadow-xl border border-[#4f453f]/20 opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none">
-                          <div className="text-[#e5e2e1] font-medium">{bucket.label}</div>
-                          <div className="text-[#e5e2e1]/70">Req: {bucket.requests}</div>
-                          <div className="text-[#ffba38]">Cache: {bucket.cacheHits}</div>
-                          <div className="text-[#e5e2e1]/50">${bucket.costUsd.toFixed(3)}</div>
-                        </div>
+        {/* ── Providers ─────────────────────────────────────────────────────── */}
+        <section id="providers" className="py-28 px-6 bg-[#0e0e0e]">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center mb-16">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-[#ffba38] font-semibold mb-3" style={{ fontFamily: 'Inter, sans-serif' }}>Current model lineup</p>
+              <h2 className="text-4xl md:text-5xl font-bold text-[#e5e2e1] tracking-[-0.02em] mb-4" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+                All frontier models.<br />One endpoint.
+              </h2>
+              <p className="text-[#e5e2e1]/55 max-w-xl mx-auto" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                Models are kept up to date with provider deprecation schedules. Currently reflecting the June 2026 lineup.
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {PROVIDERS.map((p, i) => (
+                <div key={i} className="bg-[#1c1b1b] border border-[#4f453f]/15 rounded-xl p-6 hover:border-[#4f453f]/40 transition-colors">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${p.accent}18` }}>
+                      <p.icon className="w-5 h-5" style={{ color: p.accent }} />
+                    </div>
+                    <span className="font-bold text-[#e5e2e1]" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>{p.name}</span>
+                  </div>
+                  <p className="text-xs text-[#e5e2e1]/50 mb-4 leading-relaxed" style={{ fontFamily: 'Manrope, sans-serif' }}>{p.description}</p>
+                  <div className="space-y-1.5">
+                    {p.models.map((m, mi) => (
+                      <div key={mi} className="flex items-center gap-2">
+                        <div className="w-1 h-1 rounded-full" style={{ backgroundColor: p.accent }} />
+                        <span className="text-xs font-mono text-[#e5e2e1]/60">{m}</span>
                       </div>
-                    )
-                  })}
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+              {/* How it works card */}
+              <div className="bg-gradient-to-br from-[#5a4136]/40 to-[#1c1b1b] border border-[#ffba38]/15 rounded-xl p-6 flex flex-col justify-between">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.15em] text-[#ffba38] font-semibold mb-3" style={{ fontFamily: 'Inter, sans-serif' }}>How routing works</p>
+                  <p className="text-sm text-[#e5e2e1]/70 leading-relaxed mb-5" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                    Supergate reads the <code className="text-[#ffba38] font-mono bg-[#ffba38]/10 px-1 rounded">model</code> field in your request and routes to the correct provider automatically. BYOK keys take precedence over gateway keys per provider.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  {['gpt-4o → OpenAI', 'claude-opus-4-8 → Anthropic', 'gemini-2.5-flash → Google', 'command-a-03-2025 → Cohere', 'mistral-large-latest → Mistral'].map((r, ri) => (
+                    <div key={ri} className="flex items-center gap-2 font-mono text-xs text-[#e5e2e1]/50">
+                      <ArrowRight className="w-3 h-3 text-[#ffba38]/50" />
+                      {r}
+                    </div>
+                  ))}
                 </div>
               </div>
-              {/* X-axis labels — show every Nth label so they don't overlap */}
-              <div className="flex justify-between ml-10 pt-2">
-                {buckets.map((bucket: UsageChartResponse['buckets'][number], i: number) => {
-                  const step = buckets.length <= 12 ? 1 : buckets.length <= 15 ? 2 : 5
-                  const show = i === 0 || i === buckets.length - 1 || i % step === 0
-                  return (
-                    <span key={i} className="flex-1 text-center text-[10px] text-[#e5e2e1]/40 font-mono truncate">
-                      {show ? bucket.label : ''}
-                    </span>
-                  )
-                })}
+            </div>
+          </div>
+        </section>
+
+        {/* ── Key Management ─────────────────────────────────────────────────── */}
+        <section className="py-28 px-6 bg-[#131313]">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center mb-16">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-[#ffba38] font-semibold mb-3" style={{ fontFamily: 'Inter, sans-serif' }}>Flexible authentication</p>
+              <h2 className="text-4xl font-bold text-[#e5e2e1] tracking-[-0.02em] mb-4" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+                Managed keys or your own. Your choice.
+              </h2>
+              <p className="text-[#e5e2e1]/55 max-w-xl mx-auto" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                Supergate supports a hybrid model — start with managed gateway keys, move to BYOK when you need compliance. Mix and match per provider.
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Gateway Keys */}
+              <div className="bg-[#1c1b1b] border border-[#ffba38]/20 rounded-xl p-8 relative overflow-hidden group hover:border-[#ffba38]/40 transition-colors">
+                <div className="absolute -top-8 -right-8 w-48 h-48 bg-[#ffba38]/6 blur-[60px] rounded-full group-hover:bg-[#ffba38]/12 transition-all" />
+                <div className="relative">
+                  <div className="w-11 h-11 bg-[#ffba38]/10 rounded-lg flex items-center justify-center mb-6 border border-[#ffba38]/20">
+                    <Key className="w-5 h-5 text-[#ffba38]" />
+                  </div>
+                  <h3 className="text-xl font-bold text-[#e5e2e1] mb-2" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Gateway Keys</h3>
+                  <p className="text-[#e5e2e1]/55 text-sm mb-6 leading-relaxed" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                    Use Supergate&apos;s managed provider keys. Zero configuration — just generate a gateway key and start calling any model immediately. Ideal for prototypes and early-stage teams.
+                  </p>
+                  <ul className="space-y-3">
+                    {[
+                      'No provider accounts needed',
+                      'Instant access to all 5 providers',
+                      'Unified billing through one gateway',
+                      'Great for rapid prototyping',
+                    ].map((item, i) => (
+                      <li key={i} className="flex items-center gap-2.5 text-sm text-[#e5e2e1]/70" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                        <CheckCircle className="w-4 h-4 text-[#ffba38] shrink-0" />{item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </div>
-            </>
-          ) : (
-            <div className="flex-1 min-h-[280px] flex items-center justify-center">
-              <div className="text-center">
-                <Activity className="w-12 h-12 text-[#e5e2e1]/20 mx-auto mb-3" />
-                <p className="text-[#e5e2e1]/40 text-sm">
-                  {providerFilter !== 'all'
-                    ? `No data for ${providerName} in this period`
-                    : 'No request data for this period'}
+
+              {/* BYOK */}
+              <div className="bg-[#1c1b1b] border border-[#e2bfb0]/15 rounded-xl p-8 relative overflow-hidden group hover:border-[#e2bfb0]/30 transition-colors">
+                <div className="absolute -top-8 -right-8 w-48 h-48 bg-[#e2bfb0]/6 blur-[60px] rounded-full group-hover:bg-[#e2bfb0]/10 transition-all" />
+                <div className="relative">
+                  <div className="w-11 h-11 bg-[#5a4136] rounded-lg flex items-center justify-center mb-6 border border-[#e2bfb0]/15">
+                    <Lock className="w-5 h-5 text-[#e2bfb0]" />
+                  </div>
+                  <h3 className="text-xl font-bold text-[#e5e2e1] mb-2" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Bring Your Own Key (BYOK)</h3>
+                  <p className="text-[#e5e2e1]/55 text-sm mb-6 leading-relaxed" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                    Store your own provider credentials inside Supergate, encrypted with AES-256-GCM. Your keys are used directly — Supergate never proxies billing. Available per provider, per tenant.
+                  </p>
+                  <ul className="space-y-3">
+                    {[
+                      'AES-256-GCM encrypted at rest',
+                      'Direct provider billing relationship',
+                      'Per-provider granularity',
+                      'Enterprise-Independent mode (BYOK-only tenants)',
+                    ].map((item, i) => (
+                      <li key={i} className="flex items-center gap-2.5 text-sm text-[#e5e2e1]/70" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                        <CheckCircle className="w-4 h-4 text-[#e2bfb0] shrink-0" />{item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Pricing ───────────────────────────────────────────────────────── */}
+        <section id="pricing" className="py-28 px-6 bg-[#0e0e0e]">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center mb-16">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-[#ffba38] font-semibold mb-3" style={{ fontFamily: 'Inter, sans-serif' }}>Transparent pricing</p>
+              <h2 className="text-4xl md:text-5xl font-bold text-[#e5e2e1] tracking-[-0.02em] mb-4" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+                Start free. Scale when ready.
+              </h2>
+              <p className="text-[#e5e2e1]/55 max-w-lg mx-auto" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                Or self-host entirely for free — all tiers are available on your own infrastructure.
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-5">
+              {TIERS.map((tier, i) => (
+                <div key={i} className={`relative bg-[#1c1b1b] border rounded-xl p-7 flex flex-col ${tier.accentClass} ${tier.name === 'Pro' ? 'ring-1 ring-[#ffba38]/30' : ''}`}>
+                  {tier.badge && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                      <span className="bg-gradient-to-br from-[#ffba38] to-[#c78b00] text-[#281900] text-[10px] font-bold uppercase tracking-[0.1em] px-3 py-1 rounded-full">
+                        {tier.badge}
+                      </span>
+                    </div>
+                  )}
+                  <div className="mb-6">
+                    <h3 className="text-lg font-bold text-[#e5e2e1] mb-1" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>{tier.name}</h3>
+                    <div className="flex items-end gap-1 mb-3">
+                      <span className="text-4xl font-bold text-[#e5e2e1]" style={{ fontFamily: 'Space Grotesk, sans-serif', color: tier.color }}>{tier.price}</span>
+                      {tier.period && <span className="text-[#e5e2e1]/40 text-sm mb-1">{tier.period}</span>}
+                    </div>
+                    <p className="text-xs text-[#e5e2e1]/50 leading-relaxed" style={{ fontFamily: 'Manrope, sans-serif' }}>{tier.description}</p>
+                  </div>
+
+                  <ul className="space-y-2.5 flex-1 mb-7">
+                    {tier.features.map((f, fi) => (
+                      <li key={fi} className="flex items-start gap-2.5 text-sm text-[#e5e2e1]/70" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                        <CheckCircle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: tier.color }} />{f}
+                      </li>
+                    ))}
+                  </ul>
+
+                  <Link href={tier.href}>
+                    <button className={`w-full py-2.5 rounded-md font-semibold text-sm transition-all ${tier.ctaClass}`} style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+                      {tier.cta}
+                    </button>
+                  </Link>
+                </div>
+              ))}
+            </div>
+
+            <p className="text-center text-xs text-[#e5e2e1]/30 mt-8" style={{ fontFamily: 'Manrope, sans-serif' }}>
+              All plans include semantic caching, usage telemetry, and multi-tenancy. Self-hosting is always free.
+            </p>
+          </div>
+        </section>
+
+        {/* ── How to deploy ─────────────────────────────────────────────────── */}
+        <section className="py-28 px-6 bg-[#131313]">
+          <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 items-center">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.2em] text-[#ffba38] font-semibold mb-4" style={{ fontFamily: 'Inter, sans-serif' }}>Self-hosted in minutes</p>
+              <h2 className="text-4xl font-bold text-[#e5e2e1] tracking-[-0.02em] mb-5 leading-tight" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+                One command.<br />Fully running.
+              </h2>
+              <p className="text-[#e5e2e1]/55 mb-8 leading-relaxed" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                Supergate ships as a Turborepo monorepo with Docker Compose. Bring your own PostgreSQL and Redis, or let the compose file spin them up. Copy your <code className="text-[#ffba38] font-mono text-sm bg-[#ffba38]/10 px-1 rounded">.env</code>, run the stack, seed the database, and you&apos;re live.
+              </p>
+              <div className="space-y-3">
+                {[
+                  { icon: Box, text: 'Docker Compose stack (gateway + dashboard + docs + postgres + redis)' },
+                  { icon: Layers, text: 'Turborepo monorepo — build only what changed' },
+                  { icon: Terminal, text: 'Database migrations with Drizzle ORM — no manual SQL' },
+                  { icon: GitBranch, text: 'GitHub Actions CI/CD template included' },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-start gap-3">
+                    <div className="w-7 h-7 rounded-md bg-[#1c1b1b] border border-[#4f453f]/20 flex items-center justify-center shrink-0 mt-0.5">
+                      <item.icon className="w-3.5 h-3.5 text-[#ffba38]" />
+                    </div>
+                    <span className="text-sm text-[#e5e2e1]/60 leading-relaxed" style={{ fontFamily: 'Manrope, sans-serif' }}>{item.text}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Terminal block */}
+            <div className="bg-[#0e0e0e] border border-[#4f453f]/20 rounded-xl overflow-hidden shadow-2xl">
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-[#4f453f]/20 bg-[#1c1b1b]">
+                <div className="flex gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#ff5f56]" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#ffbd2e]" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#27c93f]" />
+                </div>
+                <span className="text-[#e5e2e1]/30 text-xs font-mono ml-2">bash</span>
+              </div>
+              <div className="p-5 font-mono text-sm space-y-2 leading-relaxed">
+                <div><span className="text-[#ffba38]">$</span> <span className="text-[#e5e2e1]/70">git clone github.com/shivanshshekhar11/supergate</span></div>
+                <div><span className="text-[#ffba38]">$</span> <span className="text-[#e5e2e1]/70">cp .env.example .env <span className="text-[#e5e2e1]/30"># add your keys</span></span></div>
+                <div><span className="text-[#ffba38]">$</span> <span className="text-[#e5e2e1]/70">docker compose -f docker-compose.prod.yml up -d</span></div>
+                <div className="text-[#e5e2e1]/30">Pulling gateway ... done</div>
+                <div className="text-[#e5e2e1]/30">Pulling dashboard ... done</div>
+                <div className="text-[#e5e2e1]/30">Starting postgres ... done</div>
+                <div className="text-[#e5e2e1]/30">Starting redis ... done</div>
+                <div><span className="text-[#ffba38]">$</span> <span className="text-[#e5e2e1]/70">pnpm db:migrate && pnpm db:seed</span></div>
+                <div className="text-[#27c93f]">✅ Supergate is live on :3000</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── CTA ───────────────────────────────────────────────────────────── */}
+        <section className="px-6 pb-28">
+          <div className="max-w-7xl mx-auto">
+            <div className="relative bg-gradient-to-br from-[#5a4136]/50 to-[#1c1b1b] border border-[#4f453f]/20 rounded-2xl p-12 lg:p-20 text-center overflow-hidden">
+              <div className="absolute top-0 right-0 w-[500px] h-[300px] bg-[#ffba38]/8 blur-[100px] rounded-full pointer-events-none" />
+              <div className="absolute bottom-0 left-0 w-[300px] h-[200px] bg-[#e2bfb0]/6 blur-[100px] rounded-full pointer-events-none" />
+              <div className="relative z-10">
+                <h2 className="text-4xl lg:text-6xl font-bold text-[#e5e2e1] tracking-[-0.02em] leading-tight mb-5" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+                  Ship faster with a<br />
+                  <span className="bg-gradient-to-r from-[#ffba38] to-[#c78b00] bg-clip-text text-transparent">
+                    gateway that just works.
+                  </span>
+                </h2>
+                <p className="text-[#e5e2e1]/55 text-lg max-w-xl mx-auto mb-10" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                  Open source, MIT licensed, and ready to run in your own infrastructure in under five minutes.
+                </p>
+                <div className="flex flex-wrap justify-center gap-4">
+                  <Link href="/register">
+                    <button className="flex items-center gap-2 bg-gradient-to-br from-[#ffba38] to-[#c78b00] text-[#281900] px-8 py-4 rounded-md font-bold text-base hover:shadow-[0_0_30px_rgba(255,186,56,0.3)] transition-all" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+                      Get started free <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </Link>
+                  <a href="https://github.com/shivanshshekhar11/supergate" target="_blank" rel="noopener noreferrer">
+                    <button className="flex items-center gap-2 bg-[#0e0e0e] border border-[#4f453f]/20 text-[#e5e2e1] px-8 py-4 rounded-md font-semibold text-base hover:bg-[#1c1b1b] transition-all" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+                      <Code className="w-4 h-4" /> Star on GitHub
+                    </button>
+                  </a>
+                </div>
+                <p className="text-xs text-[#e5e2e1]/25 mt-8 uppercase tracking-[0.15em]" style={{ fontFamily: 'Inter, sans-serif' }}>
+                  Open Source · MIT License · Docker Ready · No Vendor Lock-in
                 </p>
               </div>
             </div>
-          )}
-        </div>
-
-        {/* Cost by Provider */}
-        <div className="bg-[#1c1b1b] rounded-lg p-6 flex flex-col">
-          <div className="mb-6">
-            <h2 className="text-2xl font-bold text-[#e5e2e1] tracking-[-0.01em]" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Cost by Provider</h2>
-            <p className="text-xs text-[#e5e2e1]/40 mt-1" style={{ fontFamily: 'Manrope, sans-serif' }}>{periodLabel}</p>
           </div>
-          <div className="flex-1 flex flex-col justify-center gap-5">
-            {providerCosts.length > 0 ? (
-              providerCosts.map((item, i) => (
-                <div key={item.provider} className="flex flex-col gap-1.5">
-                  <div className="flex justify-between text-sm">
-                    <span className="font-medium text-[#e5e2e1] capitalize">{item.provider}</span>
-                    <span className="font-mono text-[#e5e2e1]/60">${item.cost.toFixed(2)}</span>
-                  </div>
-                  <div className="h-2 w-full bg-[#0e0e0e] rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ${i === 0 ? 'bg-[#ffba38]/80' : i === 1 ? 'bg-[#e2bfb0]/60' : i === 2 ? 'bg-[#cca72f]/70' : 'bg-[#5a4136]'}`}
-                      style={{ width: `${item.percentage}%` }}
-                    />
-                  </div>
-                  <span className="text-[10px] text-[#e5e2e1]/30 font-mono">{item.percentage}%</span>
-                </div>
-              ))
-            ) : (
-              <div className="text-center">
-                <DollarSign className="w-12 h-12 text-[#e5e2e1]/20 mx-auto mb-3" />
-                <p className="text-[#e5e2e1]/40 text-sm">
-                  {providerFilter !== 'all'
-                    ? `No cost data for ${providerName}`
-                    : 'No provider cost data for this period'}
-                </p>
+        </section>
+      </main>
+
+      {/* Footer */}
+      <footer className="bg-[#0e0e0e] border-t border-[#4f453f]/10">
+        <div className="max-w-7xl mx-auto px-6 py-14 grid grid-cols-2 md:grid-cols-4 gap-10" style={{ fontFamily: 'Manrope, sans-serif' }}>
+          <div className="col-span-2 md:col-span-1">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="rounded-[4px] bg-gradient-to-br from-[#ffba38] to-[#c78b00] p-1.5">
+                <Activity className="w-3.5 h-3.5 text-[#281900]" strokeWidth={2.5} />
               </div>
-            )}
+              <span className="font-bold text-[#e5e2e1]" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Supergate</span>
+            </div>
+            <p className="text-xs text-[#e5e2e1]/40 leading-relaxed">
+              Unified LLM gateway for production apps.<br />Open source under the MIT license.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2.5">
+            <h4 className="text-xs font-bold text-[#e5e2e1]/50 uppercase tracking-[0.12em] mb-1">Product</h4>
+            <Link href="/register" className="text-sm text-[#e5e2e1]/40 hover:text-[#ffba38] transition-colors">Get Started</Link>
+            <a href="#features" className="text-sm text-[#e5e2e1]/40 hover:text-[#ffba38] transition-colors">Features</a>
+            <a href="#pricing" className="text-sm text-[#e5e2e1]/40 hover:text-[#ffba38] transition-colors">Pricing</a>
+          </div>
+          <div className="flex flex-col gap-2.5">
+            <h4 className="text-xs font-bold text-[#e5e2e1]/50 uppercase tracking-[0.12em] mb-1">Resources</h4>
+            <Link href="/docs" className="text-sm text-[#e5e2e1]/40 hover:text-[#ffba38] transition-colors">Documentation</Link>
+            <a href="https://github.com/shivanshshekhar11/supergate" target="_blank" rel="noopener noreferrer" className="text-sm text-[#e5e2e1]/40 hover:text-[#ffba38] transition-colors">GitHub</a>
+            <a href="#providers" className="text-sm text-[#e5e2e1]/40 hover:text-[#ffba38] transition-colors">Supported Models</a>
+          </div>
+          <div className="flex flex-col gap-2.5">
+            <h4 className="text-xs font-bold text-[#e5e2e1]/50 uppercase tracking-[0.12em] mb-1">Legal</h4>
+            <a href="#" className="text-sm text-[#e5e2e1]/40 hover:text-[#ffba38] transition-colors">Privacy Policy</a>
+            <a href="#" className="text-sm text-[#e5e2e1]/40 hover:text-[#ffba38] transition-colors">Terms of Service</a>
+            <a href="#" className="text-sm text-[#e5e2e1]/40 hover:text-[#ffba38] transition-colors">MIT License</a>
           </div>
         </div>
-      </div>
-
-      {/* Recent Requests */}
-      <div className="bg-[#1c1b1b] rounded-lg p-4 sm:p-6">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
-          <div>
-            <h2 className="text-xl sm:text-2xl font-bold text-[#e5e2e1] tracking-[-0.01em]" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>Recent Requests</h2>
-            <p className="text-xs text-[#e5e2e1]/40 mt-1" style={{ fontFamily: 'Manrope, sans-serif' }}>{periodLabel}{providerFilter !== 'all' ? ` · ${providerName}` : ''}</p>
+        <div className="border-t border-[#4f453f]/8 px-6 py-5 max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+          <p className="text-xs text-[#e5e2e1]/20" style={{ fontFamily: 'Manrope, sans-serif' }}>© 2026 Supergate. Open source under the MIT License.</p>
+          <div className="flex items-center gap-2 text-xs text-[#e5e2e1]/20" style={{ fontFamily: 'Manrope, sans-serif' }}>
+            <Globe className="w-3 h-3" />
+            <span>Self-hostable anywhere</span>
           </div>
-          <a href="/usage" className="text-sm font-medium text-[#ffba38] hover:text-[#c78b00] transition-colors flex items-center gap-1 self-start sm:self-auto">
-            View All Logs <ArrowRight className="w-4 h-4" />
-          </a>
         </div>
-        <div className="w-full overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="text-[#e5e2e1]/60 text-xs uppercase tracking-[0.2em] border-b border-[#4f453f]/15">
-                <th className="pb-3 px-4 font-medium" style={{ fontFamily: 'Inter, sans-serif' }}>Status</th>
-                <th className="pb-3 px-4 font-medium" style={{ fontFamily: 'Inter, sans-serif' }}>Provider & Model</th>
-                <th className="pb-3 px-4 font-medium" style={{ fontFamily: 'Inter, sans-serif' }}>Latency</th>
-                <th className="pb-3 px-4 font-medium" style={{ fontFamily: 'Inter, sans-serif' }}>Cost</th>
-                <th className="pb-3 px-4 font-medium text-right" style={{ fontFamily: 'Inter, sans-serif' }}>Timestamp</th>
-              </tr>
-            </thead>
-            <tbody className="text-sm font-mono text-[#e5e2e1]">
-              {recentRequests.length > 0 ? recentRequests.map((req, i) => (
-                <tr key={i} className="border-b border-[#4f453f]/10 hover:bg-[#353534]/50 transition-colors">
-                  <td className="py-4 px-4">
-                    <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-xs font-sans font-medium ${req.statusType === 'success' ? 'bg-[#5a4136]/30 text-[#e2bfb0]' : 'bg-[#93000a]/30 text-[#ffb4ab]'}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${req.statusType === 'success' ? 'bg-emerald-400' : 'bg-[#ffb4ab]'}`} />
-                      {req.status}
-                    </div>
-                  </td>
-                  <td className="py-4 px-4">
-                    <div className="flex flex-col gap-0.5">
-                      <span className="font-sans font-medium text-[#e5e2e1] capitalize">{req.provider}</span>
-                      <span className="text-xs text-[#e5e2e1]/60">{req.model}</span>
-                    </div>
-                  </td>
-                  <td className={`py-4 px-4 ${req.cached ? 'text-[#ffba38]' : 'text-[#e5e2e1]/60'}`}>{req.latency}</td>
-                  <td className="py-4 px-4 text-[#e5e2e1]/60">${req.cost}</td>
-                  <td className="py-4 px-4 text-right text-[#e5e2e1]/70">{req.timestamp}</td>
-                </tr>
-              )) : (
-                <tr>
-                  <td colSpan={5} className="py-10 text-center">
-                    <div className="flex flex-col items-center gap-2 text-[#e5e2e1]/40 text-sm">
-                      <Activity className="w-8 h-8 text-[#e5e2e1]/20" />
-                      {providerFilter !== 'all' ? `No recent requests for ${providerName}` : 'No recent requests'}
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </DashboardLayout>
+      </footer>
+    </div>
   )
 }

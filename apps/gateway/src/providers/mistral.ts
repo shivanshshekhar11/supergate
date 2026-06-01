@@ -4,44 +4,18 @@ import { LLMProvider, ProviderConfig } from './types'
 import { CircuitBreaker } from '../lib/circuit-breaker'
 
 /**
- * Mistral cost table (USD per token)
- * Updated: 2024-12
+ * Mistral cost table (USD per token) — updated June 2026
  * Source: https://mistral.ai/technology/#pricing
  */
 const COST_TABLE: Record<string, { inputUsd: number; outputUsd: number }> = {
-  // Mistral Large (most capable)
-  'mistral-large-latest': { inputUsd: 0.000002, outputUsd: 0.000006 },
-  'mistral-large-2411': { inputUsd: 0.000002, outputUsd: 0.000006 },
-  'mistral-large-2407': { inputUsd: 0.000002, outputUsd: 0.000006 },
-  
-  // Mistral Medium (balanced)
+  // Mistral Large 3 (most capable)
+  'mistral-large-latest':  { inputUsd: 0.000003,  outputUsd: 0.000009 },
+  // Mistral Medium 3.5 (balanced)
   'mistral-medium-latest': { inputUsd: 0.0000027, outputUsd: 0.0000081 },
-  'mistral-medium-2312': { inputUsd: 0.0000027, outputUsd: 0.0000081 },
-  
-  // Mistral Small (fast and efficient)
-  'mistral-small-latest': { inputUsd: 0.000001, outputUsd: 0.000003 },
-  'mistral-small-2409': { inputUsd: 0.000001, outputUsd: 0.000003 },
-  'mistral-small-2402': { inputUsd: 0.000001, outputUsd: 0.000003 },
-  
-  // Pixtral (multimodal)
-  'pixtral-12b-2409': { inputUsd: 0.00000015, outputUsd: 0.00000015 },
-  'pixtral-large-latest': { inputUsd: 0.000002, outputUsd: 0.000006 },
-  
-  // Open models
-  'open-mistral-7b': { inputUsd: 0.00000025, outputUsd: 0.00000025 },
-  'open-mixtral-8x7b': { inputUsd: 0.0000007, outputUsd: 0.0000007 },
-  'open-mixtral-8x22b': { inputUsd: 0.000002, outputUsd: 0.000006 },
-  'open-mistral-nemo': { inputUsd: 0.0000003, outputUsd: 0.0000003 },
-  'open-mistral-nemo-2407': { inputUsd: 0.0000003, outputUsd: 0.0000003 },
-  
-  // Codestral (code-specific)
-  'codestral-latest': { inputUsd: 0.000001, outputUsd: 0.000003 },
-  'codestral-2405': { inputUsd: 0.000001, outputUsd: 0.000003 },
-  
-  // Ministral (edge deployment)
-  'ministral-8b-latest': { inputUsd: 0.0000001, outputUsd: 0.0000001 },
-  'ministral-3b-latest': { inputUsd: 0.00000004, outputUsd: 0.00000004 },
+  // Mistral Small 4 (fast and efficient)
+  'mistral-small-latest':  { inputUsd: 0.000001,  outputUsd: 0.000003 },
 }
+
 
 /**
  * Mistral Provider implementation

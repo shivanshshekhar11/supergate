@@ -18,7 +18,7 @@ describe('Cost Calculator', () => {
     describe('OpenAI Models', () => {
       it('should calculate cost for gpt-4o', () => {
         const cost = calculateCost('gpt-4o', 1000, 500)
-        // 1000 * 0.0000025 + 500 * 0.00001 = 0.0025 + 0.005 = 0.0075
+        // 1000 * 0.0000025 + 500 * 0.000010 = 0.0025 + 0.005 = 0.0075
         expect(cost).toBe(0.0075)
       })
 
@@ -28,64 +28,64 @@ describe('Cost Calculator', () => {
         expect(cost).toBe(0.0045)
       })
 
-      it('should calculate cost for gpt-4-turbo', () => {
-        const cost = calculateCost('gpt-4-turbo', 1000, 1000)
-        // 1000 * 0.00001 + 1000 * 0.00003 = 0.01 + 0.03 = 0.04
-        expect(cost).toBe(0.04)
+      it('should calculate cost for gpt-4.1', () => {
+        const cost = calculateCost('gpt-4.1', 1000, 1000)
+        // 1000 * 0.000002 + 1000 * 0.000008 = 0.002 + 0.008 = 0.01
+        expect(cost).toBe(0.01)
       })
 
-      it('should calculate cost for gpt-3.5-turbo', () => {
-        const cost = calculateCost('gpt-3.5-turbo', 10000, 10000)
-        // 10000 * 0.0000005 + 10000 * 0.0000015 = 0.005 + 0.015 = 0.02
-        expect(cost).toBe(0.02)
+      it('should calculate cost for gpt-4.1-nano', () => {
+        const cost = calculateCost('gpt-4.1-nano', 10000, 10000)
+        // 10000 * 0.0000001 + 10000 * 0.0000004 = 0.001 + 0.004 = 0.005
+        expect(cost).toBe(0.005)
       })
     })
 
     describe('Anthropic Models', () => {
-      it('should calculate cost for claude-3-5-sonnet', () => {
-        const cost = calculateCost('claude-3-5-sonnet-20241022', 1000, 500)
+      it('should calculate cost for claude-sonnet-4-6', () => {
+        const cost = calculateCost('claude-sonnet-4-6', 1000, 500)
         // 1000 * 0.000003 + 500 * 0.000015 = 0.003 + 0.0075 = 0.0105
         expect(cost).toBe(0.0105)
       })
 
-      it('should calculate cost for claude-3-opus', () => {
-        const cost = calculateCost('claude-3-opus-20240229', 1000, 1000)
-        // 1000 * 0.000015 + 1000 * 0.000075 = 0.015 + 0.075 = 0.09
-        expect(cost).toBe(0.09)
+      it('should calculate cost for claude-opus-4-8', () => {
+        const cost = calculateCost('claude-opus-4-8', 1000, 1000)
+        // 1000 * 0.000005 + 1000 * 0.000025 = 0.005 + 0.025 = 0.03
+        expect(cost).toBe(0.03)
       })
 
-      it('should calculate cost for claude-3-haiku', () => {
-        const cost = calculateCost('claude-3-haiku-20240307', 10000, 10000)
-        // 10000 * 0.00000025 + 10000 * 0.00000125 = 0.0025 + 0.0125 = 0.015
-        expect(cost).toBe(0.015)
+      it('should calculate cost for claude-haiku-4-5', () => {
+        const cost = calculateCost('claude-haiku-4-5', 10000, 10000)
+        // 10000 * 0.000001 + 10000 * 0.000005 = 0.01 + 0.05 = 0.06
+        expect(cost).toBe(0.06)
       })
     })
 
     describe('Google Models', () => {
-      it('should calculate cost for gemini-1.5-pro', () => {
-        const cost = calculateCost('gemini-1.5-pro', 1000, 1000)
-        // 1000 * 0.00000125 + 1000 * 0.000005 = 0.00125 + 0.005 = 0.00625
-        expect(cost).toBe(0.00625)
+      it('should calculate cost for gemini-2.5-pro', () => {
+        const cost = calculateCost('gemini-2.5-pro', 1000, 1000)
+        // 1000 * 0.00000125 + 1000 * 0.000010 = 0.00125 + 0.01 = 0.01125
+        expect(cost).toBe(0.01125)
       })
 
-      it('should calculate cost for gemini-1.5-flash', () => {
-        const cost = calculateCost('gemini-1.5-flash', 10000, 10000)
-        // 10000 * 0.000000075 + 10000 * 0.0000003 = 0.00075 + 0.003 = 0.00375
-        expect(cost).toBe(0.00375)
+      it('should calculate cost for gemini-2.5-flash', () => {
+        const cost = calculateCost('gemini-2.5-flash', 10000, 10000)
+        // 10000 * 0.0000003 + 10000 * 0.0000025 = 0.003 + 0.025 = 0.028
+        expect(cost).toBe(0.028)
       })
     })
 
     describe('Cohere Models', () => {
-      it('should calculate cost for command-r-plus', () => {
-        const cost = calculateCost('command-r-plus', 1000, 1000)
-        // 1000 * 0.000003 + 1000 * 0.000015 = 0.003 + 0.015 = 0.018
-        expect(cost).toBe(0.018)
+      it('should calculate cost for command-a-03-2025', () => {
+        const cost = calculateCost('command-a-03-2025', 1000, 1000)
+        // 1000 * 0.0000025 + 1000 * 0.000010 = 0.0025 + 0.010 = 0.0125
+        expect(cost).toBe(0.0125)
       })
 
-      it('should calculate cost for command-r', () => {
-        const cost = calculateCost('command-r', 10000, 10000)
-        // 10000 * 0.0000005 + 10000 * 0.0000015 = 0.005 + 0.015 = 0.02
-        expect(cost).toBe(0.02)
+      it('should calculate cost for command-r7b-12-2024', () => {
+        const cost = calculateCost('command-r7b-12-2024', 10000, 10000)
+        // 10000 * 0.0000000375 + 10000 * 0.00000015 = 0.000375 + 0.0015 = 0.001875
+        expect(cost).toBe(0.001875)
       })
     })
 
@@ -134,7 +134,7 @@ describe('Cost Calculator', () => {
 
       it('should handle large token counts', () => {
         const cost = calculateCost('gpt-4o', 1000000, 500000)
-        // 1M * 0.0000025 + 500K * 0.00001 = 2.5 + 5 = 7.5
+        // 1M * 0.0000025 + 500K * 0.000010 = 2.5 + 5 = 7.5
         expect(cost).toBe(7.5)
       })
 
@@ -155,7 +155,7 @@ describe('Cost Calculator', () => {
         outputCost: 0.005,
         totalCost: 0.0075,
         inputRate: 0.0000025,
-        outputRate: 0.00001,
+        outputRate: 0.000010,
       })
     })
 
@@ -186,25 +186,25 @@ describe('Cost Calculator', () => {
   describe('hasKnownPricing', () => {
     it('should return true for known OpenAI models', () => {
       expect(hasKnownPricing('gpt-4o')).toBe(true)
+      expect(hasKnownPricing('gpt-4.1')).toBe(true)
       expect(hasKnownPricing('gpt-4o-mini')).toBe(true)
-      expect(hasKnownPricing('gpt-4-turbo')).toBe(true)
-      expect(hasKnownPricing('gpt-3.5-turbo')).toBe(true)
+      expect(hasKnownPricing('gpt-4.1-nano')).toBe(true)
     })
 
     it('should return true for known Anthropic models', () => {
-      expect(hasKnownPricing('claude-3-5-sonnet-20241022')).toBe(true)
-      expect(hasKnownPricing('claude-3-opus-20240229')).toBe(true)
-      expect(hasKnownPricing('claude-3-haiku-20240307')).toBe(true)
+      expect(hasKnownPricing('claude-opus-4-8')).toBe(true)
+      expect(hasKnownPricing('claude-sonnet-4-6')).toBe(true)
+      expect(hasKnownPricing('claude-haiku-4-5')).toBe(true)
     })
 
     it('should return true for known Google models', () => {
-      expect(hasKnownPricing('gemini-1.5-pro')).toBe(true)
-      expect(hasKnownPricing('gemini-1.5-flash')).toBe(true)
+      expect(hasKnownPricing('gemini-2.5-flash')).toBe(true)
+      expect(hasKnownPricing('gemini-2.5-pro')).toBe(true)
     })
 
     it('should return true for known Cohere models', () => {
-      expect(hasKnownPricing('command-r-plus')).toBe(true)
-      expect(hasKnownPricing('command-r')).toBe(true)
+      expect(hasKnownPricing('command-a-03-2025')).toBe(true)
+      expect(hasKnownPricing('command-r7b-12-2024')).toBe(true)
     })
 
     it('should return true for known Mistral models', () => {
@@ -214,7 +214,7 @@ describe('Cost Calculator', () => {
 
     it('should return false for unknown models', () => {
       expect(hasKnownPricing('unknown-model')).toBe(false)
-      expect(hasKnownPricing('gpt-5')).toBe(false)
+      expect(hasKnownPricing('gpt-3.5-turbo')).toBe(false)  // retired
       expect(hasKnownPricing('')).toBe(false)
     })
   })
@@ -231,11 +231,10 @@ describe('Cost Calculator', () => {
       const models = getModelsWithPricing()
 
       // Check for OpenAI models
-      expect(models.some(m => m.startsWith('gpt-4o'))).toBe(true)
-      expect(models.some(m => m.startsWith('gpt-3.5'))).toBe(true)
+      expect(models.some(m => m.startsWith('gpt-4'))).toBe(true)
 
       // Check for Anthropic models
-      expect(models.some(m => m.startsWith('claude-3'))).toBe(true)
+      expect(models.some(m => m.startsWith('claude-opus') || m.startsWith('claude-sonnet') || m.startsWith('claude-haiku'))).toBe(true)
 
       // Check for Google models
       expect(models.some(m => m.startsWith('gemini'))).toBe(true)
@@ -244,7 +243,7 @@ describe('Cost Calculator', () => {
       expect(models.some(m => m.startsWith('command'))).toBe(true)
 
       // Check for Mistral models
-      expect(models.some(m => m.startsWith('mistral') || m.startsWith('open-mistral'))).toBe(true)
+      expect(models.some(m => m.startsWith('mistral') || m.startsWith('codestral'))).toBe(true)
     })
 
     it('should match COST_TABLE keys', () => {
@@ -283,9 +282,9 @@ describe('Cost Calculator', () => {
       })
     })
 
-    it('should include at least 40 models', () => {
+    it('should include at least 10 models', () => {
       const modelCount = Object.keys(COST_TABLE).length
-      expect(modelCount).toBeGreaterThanOrEqual(40)
+      expect(modelCount).toBeGreaterThanOrEqual(10)
     })
   })
 
@@ -293,7 +292,8 @@ describe('Cost Calculator', () => {
     it('should calculate cost for typical GPT-4o conversation', () => {
       // Typical conversation: 500 input tokens, 300 output tokens
       const cost = calculateCost('gpt-4o', 500, 300)
-      expect(cost).toBeCloseTo(0.00425, 5) // ~$0.004
+      // 500 * 0.0000025 + 300 * 0.000010 = 0.00125 + 0.003 = 0.00425
+      expect(cost).toBeCloseTo(0.00425, 4) // $0.00425
     })
 
     it('should calculate cost for long GPT-4o-mini conversation', () => {
@@ -302,25 +302,25 @@ describe('Cost Calculator', () => {
       expect(cost).toBeCloseTo(0.00255, 5) // ~$0.003
     })
 
-    it('should calculate cost for Claude 3.5 Sonnet analysis', () => {
+    it('should calculate cost for Claude Sonnet 4.6 analysis', () => {
       // Analysis task: 2000 input tokens, 1500 output tokens
-      const cost = calculateCost('claude-3-5-sonnet-20241022', 2000, 1500)
+      const cost = calculateCost('claude-sonnet-4-6', 2000, 1500)
       expect(cost).toBeCloseTo(0.0285, 4) // ~$0.029
     })
 
     it('should show cost difference between models', () => {
       const tokens = { input: 1000, output: 1000 }
 
-      const gpt4oCost = calculateCost('gpt-4o', tokens.input, tokens.output)
-      const gpt4oMiniCost = calculateCost('gpt-4o-mini', tokens.input, tokens.output)
-      const claudeHaikuCost = calculateCost('claude-3-haiku-20240307', tokens.input, tokens.output)
+      const gpt4oCost    = calculateCost('gpt-4o', tokens.input, tokens.output)
+      const gpt4oMini    = calculateCost('gpt-4o-mini', tokens.input, tokens.output)
+      const claudeHaiku  = calculateCost('claude-haiku-4-5', tokens.input, tokens.output)
 
       // GPT-4o should be most expensive
-      expect(gpt4oCost).toBeGreaterThan(gpt4oMiniCost)
-      expect(gpt4oCost).toBeGreaterThan(claudeHaikuCost)
+      expect(gpt4oCost).toBeGreaterThan(gpt4oMini)
+      expect(gpt4oCost).toBeGreaterThan(claudeHaiku)
 
       // GPT-4o-mini should be cheaper than GPT-4o
-      expect(gpt4oMiniCost).toBeLessThan(gpt4oCost)
+      expect(gpt4oMini).toBeLessThan(gpt4oCost)
     })
 
     it('should calculate daily cost for high-volume usage', () => {

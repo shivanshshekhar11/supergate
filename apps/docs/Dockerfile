@@ -20,6 +20,9 @@ COPY --from=deps /app/apps/docs/node_modules ./apps/docs/node_modules 2>/dev/nul
 
 COPY apps/docs ./apps/docs
 
+ARG NEXT_PUBLIC_DASHBOARD_URL
+ENV NEXT_PUBLIC_DASHBOARD_URL=$NEXT_PUBLIC_DASHBOARD_URL
+
 RUN DOCKER_BUILD=1 pnpm --filter @llm-gateway/docs build
 
 # ── Stage 3: runner ───────────────────────────────────────────────────────────

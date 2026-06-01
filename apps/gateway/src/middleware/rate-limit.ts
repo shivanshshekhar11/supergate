@@ -110,7 +110,7 @@ export async function rateLimitMiddleware(
 ): Promise<void> {
   // Skip rate limiting if no tenant context (shouldn't happen after auth)
   if (!request.tenantContext) {
-    console.warn('[RateLimit] No tenant context - skipping rate limit check')
+    request.log.warn('[RateLimit] No tenant context - skipping rate limit check')
     return
   }
 
@@ -168,7 +168,7 @@ export async function rateLimitMiddleware(
           ? `Token rate limit exceeded. Limit: ${config.tpm} tokens/minute`
           : `Request rate limit exceeded. Limit: ${config.rpm} requests/minute`
 
-      console.log(
+      request.log.warn(
         `[RateLimit] Rate limit exceeded: tenant=${tenantId}, reason=${reason}, ` +
         `tpm=${config.tpm}, rpm=${config.rpm}`
       )
@@ -192,14 +192,14 @@ export async function rateLimitMiddleware(
     }
 
     // Rate limit check passed
-    console.log(
+    request.log.info(
       `[RateLimit] Check passed: tenant=${tenantId}, ` +
       `remaining_rpm=${remainingRPM}, remaining_tpm=${remainingTPM}`
     )
   } catch (error) {
-    console.error('[RateLimit] Error checking rate limit:', error)
+    request.log.error({ err: error }, '[RateLimit] Error checking rate limit')
     // On error, allow the request through (fail open)
     // This prevents Redis issues from blocking all traffic
-    console.warn('[RateLimit] Allowing request due to rate limit check error')
+    request.log.warn('[RateLimit] Allowing request due to rate limit check error')
   }
 }

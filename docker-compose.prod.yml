@@ -47,9 +47,7 @@ services:
   # ── Applications ────────────────────────────────────────────────────────────
 
   gateway:
-    build:
-      context: .
-      dockerfile: apps/gateway/Dockerfile
+    image: ghcr.io/shivanshshekhar11/supergate-gateway:latest
     container_name: supergate-gateway
     restart: unless-stopped
     env_file: .env
@@ -76,9 +74,7 @@ services:
           memory: 512m
 
   dashboard:
-    build:
-      context: .
-      dockerfile: apps/dashboard/Dockerfile
+    image: ghcr.io/shivanshshekhar11/supergate-dashboard:latest
     container_name: supergate-dashboard
     restart: unless-stopped
     environment:
@@ -101,9 +97,7 @@ services:
           memory: 256m
 
   docs:
-    build:
-      context: .
-      dockerfile: apps/docs/Dockerfile
+    image: ghcr.io/shivanshshekhar11/supergate-docs:latest
     container_name: supergate-docs
     restart: unless-stopped
     environment:

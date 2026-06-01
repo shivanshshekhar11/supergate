@@ -17,6 +17,7 @@ Supergate sits in front of OpenAI, Anthropic, Google, Cohere, and Mistral and gi
 | **BYOK** | Bring your own provider keys — AES-256-GCM encrypted at rest |
 | **PII masking** | Regex scrub on request bodies before storage |
 | **Observability** | Structured logs, circuit breaker states, cache hit rates |
+| **100% Self-Hostable** | Deploy anywhere using Docker Compose or Kubernetes |
 
 ## Architecture
 
@@ -29,5 +30,6 @@ Every request flows through an ordered middleware pipeline. Adding a new concern
 ## Quick links
 
 - [Quickstart](/docs/quickstart) — working request in 60 seconds
+- [Deployment](/docs/deployment) — how to self-host and deploy
 - [Authentication](/docs/authentication) — API keys and BYOK
 - [SDK](/docs/sdk) — TypeScript SDK for Node.js

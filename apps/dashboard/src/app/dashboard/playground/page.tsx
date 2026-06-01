@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/auth-context'
 import { playgroundAPI, type PlaygroundModel, type PlaygroundMeta } from '@/lib/gateway-client'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
-  Play, Square, ChevronDown, Copy, Check, AlertCircle,
+  Play, ChevronDown, Copy, Check, AlertCircle,
   Zap, DollarSign, Cpu, Info, RotateCcw,
 } from 'lucide-react'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
@@ -57,6 +57,10 @@ export default function PlaygroundPage() {
   const [systemPrompt, setSystemPrompt] = useState('')
   const [userInput,    setUserInput]    = useState('')
 
+  // Auto-resize refs
+  const userInputRef   = useRef<HTMLTextAreaElement>(null)
+  const systemPromptRef = useRef<HTMLTextAreaElement>(null)
+
   // Parameters
   const [temperature, setTemperature] = useState(0.7)
   const [maxTokens,   setMaxTokens]   = useState(2048)
@@ -69,6 +73,13 @@ export default function PlaygroundPage() {
   const [runError,     setRunError]     = useState<string | null>(null)
   const [responseTab,  setResponseTab]  = useState<'formatted' | 'raw'>('formatted')
   const [copied,       setCopied]       = useState(false)
+
+  // Auto-resize textarea helper
+  const autoResize = (el: HTMLTextAreaElement | null) => {
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, 320) + 'px'
+  }
 
   // Load models on mount
   useEffect(() => {
@@ -98,6 +109,7 @@ export default function PlaygroundPage() {
     setSelectedPreset(idx)
     setSystemPrompt(PRESETS[idx].systemPrompt)
     setShowPresetMenu(false)
+    setTimeout(() => autoResize(systemPromptRef.current), 0)
   }
 
   const handleRun = useCallback(async () => {
@@ -145,6 +157,10 @@ export default function PlaygroundPage() {
     setRunError(null)
     setTemperature(0.7)
     setMaxTokens(2048)
+    setTimeout(() => {
+      autoResize(userInputRef.current)
+      autoResize(systemPromptRef.current)
+    }, 0)
   }
 
   const selectedModelObj = models.find(m => m.id === selectedModel)
@@ -201,7 +217,7 @@ export default function PlaygroundPage() {
               <div className="relative" ref={modelMenuRef}>
                 <button
                   onClick={() => setShowModelMenu(v => !v)}
-                  className="flex items-center gap-2 bg-[#1c1b1b] hover:bg-[#353534] border border-[#4f453f]/20 text-[#e5e2e1] px-3 py-2 rounded-md text-sm transition-colors min-w-[160px]"
+                  className="flex items-center gap-2 bg-[#1c1b1b] hover:bg-[#353534] border border-[#4f453f]/20 text-[#e5e2e1] px-3 py-2 rounded-md text-sm transition-colors min-w-[180px]"
                   style={{ fontFamily: 'Manrope, sans-serif' }}
                 >
                   <span className="flex-1 text-left truncate">
@@ -213,7 +229,6 @@ export default function PlaygroundPage() {
                 </button>
                 {showModelMenu && (
                   <div className="absolute top-full mt-1 left-0 w-64 bg-[#131313] border border-[#4f453f]/20 rounded-md shadow-2xl z-50 overflow-hidden">
-                    {/* Group by provider */}
                     {['openai', 'anthropic', 'google', 'cohere', 'mistral'].map(prov => {
                       const provModels = models.filter(m => m.provider === prov)
                       if (provModels.length === 0) return null
@@ -269,67 +284,48 @@ export default function PlaygroundPage() {
                 <span className="text-[10px] text-[#e5e2e1]/30 font-mono">~{systemTokenEst} tokens</span>
               </div>
               <textarea
+                ref={systemPromptRef}
                 value={systemPrompt}
-                onChange={e => setSystemPrompt(e.target.value)}
+                onChange={e => { setSystemPrompt(e.target.value); autoResize(e.target) }}
                 placeholder="You are a helpful assistant..."
-                rows={4}
-                className="w-full bg-transparent text-[#e5e2e1]/80 text-sm px-4 py-3 resize-none focus:outline-none placeholder-[#e5e2e1]/20"
-                style={{ fontFamily: 'Manrope, sans-serif' }}
+                rows={3}
+                className="w-full bg-transparent text-[#e5e2e1]/80 text-sm px-4 py-3 resize-none focus:outline-none placeholder-[#e5e2e1]/20 transition-all"
+                style={{ fontFamily: 'Manrope, sans-serif', minHeight: '72px', maxHeight: '320px', overflow: 'hidden' }}
               />
             </div>
 
-            {/* Conversation area */}
-            <div className="bg-[#0e0e0e] rounded-lg flex-1 min-h-[200px] flex flex-col relative overflow-hidden">
-              <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-[#0e0e0e] via-[#ffba38]/15 to-[#0e0e0e]" />
-
-              {/* User message display */}
-              {userInput && (
-                <div className="px-4 pt-4 pb-2">
-                  <div className="flex items-start gap-3 justify-end">
-                    <div className="bg-[#353534] rounded-lg px-4 py-3 max-w-[85%]">
-                      <p className="text-sm text-[#e5e2e1]/80 whitespace-pre-wrap" style={{ fontFamily: 'Manrope, sans-serif' }}>{userInput}</p>
-                    </div>
-                    <div className="w-6 h-6 rounded-md bg-[#4f453f] flex items-center justify-center shrink-0 mt-0.5">
-                      <span className="text-[10px] text-[#e5e2e1]/60 font-bold">U</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Empty state */}
-              {!userInput && !result && (
-                <div className="flex-1 flex items-center justify-center p-8">
-                  <p className="text-[#e5e2e1]/20 text-sm text-center" style={{ fontFamily: 'Manrope, sans-serif' }}>
-                    Type a message below and press Run
-                  </p>
-                </div>
-              )}
-
-              <div className="flex-1" />
-
-              {/* Input area */}
-              <div className="border-t border-[#4f453f]/15 p-3 flex items-end gap-3">
-                <textarea
-                  value={userInput}
-                  onChange={e => setUserInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleRun() }}
-                  placeholder="Add a message to refine the request..."
-                  rows={2}
-                  className="flex-1 bg-transparent text-[#e5e2e1] text-sm resize-none focus:outline-none placeholder-[#e5e2e1]/25"
+            {/* User message — auto-expanding textarea */}
+            <div className="bg-[#1c1b1b] rounded-lg overflow-hidden border border-[#4f453f]/15 focus-within:border-[#ffba38]/30 transition-colors">
+              <div className="flex items-center justify-between px-4 py-2 border-b border-[#4f453f]/15">
+                <span className="text-[10px] uppercase tracking-[0.15em] text-[#e5e2e1]/50 font-medium" style={{ fontFamily: 'Inter, sans-serif' }}>User Message</span>
+                <span className="text-[10px] text-[#e5e2e1]/30 font-mono">~{userTokenEst} tokens</span>
+              </div>
+              <textarea
+                ref={userInputRef}
+                id="user-message"
+                value={userInput}
+                onChange={e => { setUserInput(e.target.value); autoResize(e.target) }}
+                onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleRun() }}
+                placeholder="Type your message here... (Ctrl+Enter to run)"
+                rows={4}
+                className="w-full bg-transparent text-[#e5e2e1] text-sm px-4 py-3 resize-none focus:outline-none placeholder-[#e5e2e1]/20 transition-all"
+                style={{ fontFamily: 'Manrope, sans-serif', minHeight: '96px', maxHeight: '320px', overflow: 'hidden' }}
+              />
+              {/* Run bar */}
+              <div className="flex items-center justify-between px-4 py-2.5 border-t border-[#4f453f]/15 bg-[#131313]/40">
+                <p className="text-[10px] text-[#e5e2e1]/30" style={{ fontFamily: 'Inter, sans-serif' }}>
+                  {userInput.trim() ? 'Ctrl+Enter to run' : 'Enter a message to run'}
+                </p>
+                <button
+                  onClick={handleRun}
+                  disabled={running || !selectedModel || !userInput.trim()}
+                  className="flex items-center gap-2 bg-gradient-to-br from-[#ffba38] to-[#c78b00] text-[#281900] px-4 py-1.5 rounded-md text-sm font-semibold hover:shadow-[0_0_20px_rgba(255,186,56,0.3)] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                   style={{ fontFamily: 'Manrope, sans-serif' }}
-                />
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <span className="text-[10px] text-[#e5e2e1]/25 font-mono hidden sm:block">~{userTokenEst}t</span>
-                  <button
-                    onClick={handleRun}
-                    disabled={running || !selectedModel || !userInput.trim()}
-                    className="flex items-center gap-2 bg-gradient-to-br from-[#ffba38] to-[#c78b00] text-[#281900] px-4 py-2 rounded-md text-sm font-semibold hover:shadow-[0_0_20px_rgba(255,186,56,0.3)] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                    style={{ fontFamily: 'Manrope, sans-serif' }}
-                  >
-                    {running ? <Square className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-                    {running ? 'Running' : 'Run'}
-                  </button>
-                </div>
+                >
+                  {running
+                    ? <><LoadingSpinner size="sm" /> Running</>
+                    : <><Play className="w-3.5 h-3.5" /> Run</>}
+                </button>
               </div>
             </div>
           </div>

@@ -249,6 +249,24 @@ pnpm db:studio    # Open Drizzle Studio
 
 ---
 
+## How I'd Scale This
+
+- **Redis-backed Circuit Breaker**: Move the circuit breaker state to Redis to allow sharing state across multiple gateway replicas.
+- **Background Jobs for Analytics**: Offload usage log cost aggregation and cache hit updates to a background job queue (e.g., BullMQ) instead of executing them synchronously on the hot path.
+- **Database Read Replicas**: Route heavy usage dashboard queries (`/v1/usage`, `/v1/usage/logs`) to read replicas to avoid impacting the write-heavy hot path.
+- **HNSW Tuning**: Tune the pgvector HNSW index parameters (`m`, `ef_construction`) as the cache size grows for optimal recall and performance.
+
+---
+
+## What I'd Add Next
+
+- **Per-model Cache Thresholds**: Configure similarity thresholds per-model (e.g., lower threshold for complex reasoning models, higher threshold for simple classifiers) instead of a global default.
+- **Streaming Cache**: Support caching for streaming requests by intercepting and buffering chunks as they flow through the gateway.
+- **OpenTelemetry Instrumentation**: Add distributed tracing (Jaeger/Honeycomb) across the gateway and LLM providers for better observability.
+- **WebSocket Dashboard**: Add real-time WebSocket streaming for the usage dashboard instead of polling.
+
+---
+
 ## License
 
 MIT

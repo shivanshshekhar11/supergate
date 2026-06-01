@@ -29,6 +29,10 @@ for i in $(seq 1 30); do
     echo "✓ Gateway is healthy"
     break
   fi
+  if [ "$i" -eq 30 ]; then
+    echo "✗ Gateway failed to become healthy"
+    exit 1
+  fi
   echo "  Waiting... ($i/30)"
   sleep 3
 done

@@ -68,6 +68,12 @@ async function gatewayFetch<T>(
   })
 
   if (!response.ok) {
+    // 401 Interceptor: token expired or invalid
+    if (response.status === 401 && typeof window !== 'undefined') {
+      localStorage.removeItem('llm_gateway_token')
+      window.location.href = '/login'
+    }
+
     const errorData = await response.json().catch(() => ({}))
     throw new GatewayAPIError(
       errorData.error?.message || `Request failed with status ${response.status}`,

@@ -38,25 +38,30 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 appuser
+
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 # Copy workspace manifests for production install
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY packages/schemas/package.json ./packages/schemas/
-COPY apps/gateway/package.json ./apps/gateway/
+COPY --chown=appuser:nodejs package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY --chown=appuser:nodejs packages/schemas/package.json ./packages/schemas/
+COPY --chown=appuser:nodejs apps/gateway/package.json ./apps/gateway/
 
 # Production deps only
 RUN pnpm install --frozen-lockfile --prod
 
 # Copy built artifacts
-COPY --from=builder /app/packages/schemas/dist ./packages/schemas/dist
-COPY --from=builder /app/apps/gateway/dist ./apps/gateway/dist
+COPY --from=builder --chown=appuser:nodejs /app/packages/schemas/dist ./packages/schemas/dist
+COPY --from=builder --chown=appuser:nodejs /app/apps/gateway/dist ./apps/gateway/dist
 
 # Copy migrations (needed at runtime for db:migrate)
-COPY apps/gateway/drizzle ./apps/gateway/drizzle
-COPY apps/gateway/drizzle.config.ts ./apps/gateway/
+COPY --chown=appuser:nodejs apps/gateway/drizzle ./apps/gateway/drizzle
+COPY --chown=appuser:nodejs apps/gateway/drizzle.config.ts ./apps/gateway/
 
 WORKDIR /app/apps/gateway
+
+USER appuser
 
 EXPOSE 3000
 

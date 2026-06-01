@@ -4,20 +4,16 @@ import { LLMProvider, ProviderConfig } from './types'
 import { CircuitBreaker } from '../lib/circuit-breaker'
 
 /**
- * OpenAI cost table (USD per token)
- * Updated: 2024-04
+ * OpenAI cost table (USD per token) — updated June 2026
+ * Source: https://openai.com/api/pricing
  */
 const COST_TABLE: Record<string, { inputUsd: number; outputUsd: number }> = {
-  'gpt-4o': { inputUsd: 0.0000025, outputUsd: 0.00001 },
-  'gpt-4o-mini': { inputUsd: 0.00000015, outputUsd: 0.0000006 },
-  'gpt-4o-2024-11-20': { inputUsd: 0.0000025, outputUsd: 0.00001 },
-  'gpt-4o-2024-08-06': { inputUsd: 0.0000025, outputUsd: 0.00001 },
-  'gpt-4o-2024-05-13': { inputUsd: 0.000005, outputUsd: 0.000015 },
-  'gpt-4-turbo': { inputUsd: 0.00001, outputUsd: 0.00003 },
-  'gpt-4': { inputUsd: 0.00003, outputUsd: 0.00006 },
-  'gpt-3.5-turbo': { inputUsd: 0.0000005, outputUsd: 0.0000015 },
-  'gpt-3.5-turbo-0125': { inputUsd: 0.0000005, outputUsd: 0.0000015 },
+  'gpt-4o':       { inputUsd: 0.0000025,  outputUsd: 0.000010 },
+  'gpt-4o-mini':  { inputUsd: 0.00000015, outputUsd: 0.0000006 },
+  'gpt-4.1':      { inputUsd: 0.000002,   outputUsd: 0.000008 },
+  'gpt-4.1-nano': { inputUsd: 0.0000001,  outputUsd: 0.0000004 },
 }
+
 
 /**
  * OpenAI Provider implementation
