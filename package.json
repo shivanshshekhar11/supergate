@@ -9,7 +9,8 @@
     "test": "turbo test",
     "lint": "turbo lint",
     "db:migrate": "pnpm --filter @llm-gateway/gateway db:migrate",
-    "db:studio": "pnpm --filter @llm-gateway/gateway db:studio"
+    "db:studio": "pnpm --filter @llm-gateway/gateway db:studio",
+    "check-all": "pnpm i && pnpm lint && pnpm build && pnpm test"
   },
   "devDependencies": {
     "turbo": "^2.3.3"

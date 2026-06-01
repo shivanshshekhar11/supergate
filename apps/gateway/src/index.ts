@@ -162,6 +162,17 @@ async function bootstrap() {
   // Register global middleware
   // Order matters: auth → rate-limit → pii-mask → routes → usage-logger
   
+  // Basic Hello World route
+  app.get('/', async (request, reply) => {
+    return reply.send({
+      name: 'Supergate API',
+      status: 'online',
+      version: '1.0.0',
+      docs: '/docs',
+      health: '/health'
+    })
+  })
+
   // Health endpoint doesn't need auth
   await app.register(healthRoutes)
   
@@ -172,6 +183,7 @@ async function bootstrap() {
   app.addHook('onRequest', async (request, reply) => {
     // Skip auth for public/self-authenticating endpoints
     if (
+      request.url === '/' ||
       request.url.startsWith('/health') ||
       request.url.startsWith('/docs') ||
       request.url.startsWith('/v1/auth')
@@ -184,6 +196,7 @@ async function bootstrap() {
   app.addHook('preHandler', async (request, reply) => {
     // Skip rate limiting for non-chat endpoints
     if (
+      request.url === '/' ||
       request.url.startsWith('/health') ||
       request.url.startsWith('/docs') ||
       request.url.startsWith('/v1/auth') ||
@@ -213,6 +226,7 @@ async function bootstrap() {
   app.addHook('onResponse', async (request, reply) => {
     // Only log usage for chat completions
     if (
+      request.url === '/' ||
       request.url.startsWith('/health') ||
       request.url.startsWith('/docs') ||
       request.url.startsWith('/v1/auth') ||

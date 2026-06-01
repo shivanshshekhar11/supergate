@@ -18,7 +18,8 @@
     "db:enable-pgvector": "tsx src/db/enable-pgvector.ts",
     "db:setup": "pnpm db:enable-pgvector && pnpm db:migrate",
     "with-dev-env": "dotenv -e .env.development --",
-    "with-prod-env": "dotenv -e .env.production --"
+    "with-prod-env": "dotenv -e .env.production --",
+    "start:prod": "node dist/db/enable-pgvector.js && pnpm db:migrate && node dist/index.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
