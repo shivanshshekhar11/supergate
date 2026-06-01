@@ -2,7 +2,7 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY packages/schemas/package.json ./packages/schemas/
@@ -14,11 +14,11 @@ RUN pnpm install --frozen-lockfile
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/packages/schemas/node_modules ./packages/schemas/node_modules 2>/dev/null || true
-COPY --from=deps /app/apps/dashboard/node_modules ./apps/dashboard/node_modules 2>/dev/null || true
+COPY --from=deps /app/packages/schemas/node_module[s] ./packages/schemas/node_modules
+COPY --from=deps /app/apps/dashboard/node_module[s] ./apps/dashboard/node_modules
 
 COPY packages/schemas ./packages/schemas
 COPY apps/dashboard ./apps/dashboard
@@ -48,7 +48,7 @@ RUN adduser --system --uid 1001 nextjs
 # Copy standalone output
 COPY --from=builder --chown=nextjs:nodejs /app/apps/dashboard/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/dashboard/.next/static ./apps/dashboard/.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/apps/dashboard/public ./apps/dashboard/public 2>/dev/null || true
+COPY --from=builder --chown=nextjs:nodejs /app/apps/dashboard/publi[c] ./apps/dashboard/public
 
 USER nextjs
 

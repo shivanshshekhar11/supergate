@@ -3,7 +3,7 @@ FROM node:20-alpine AS deps
 WORKDIR /app
 
 # Install pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 
 # Copy workspace manifests
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
@@ -17,11 +17,11 @@ RUN pnpm install --frozen-lockfile
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/packages/schemas/node_modules ./packages/schemas/node_modules 2>/dev/null || true
-COPY --from=deps /app/apps/gateway/node_modules ./apps/gateway/node_modules 2>/dev/null || true
+COPY --from=deps /app/packages/schemas/node_module[s] ./packages/schemas/node_modules
+COPY --from=deps /app/apps/gateway/node_module[s] ./apps/gateway/node_modules
 
 # Copy source
 COPY packages/schemas ./packages/schemas
@@ -41,7 +41,7 @@ ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 appuser
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 
 # Copy workspace manifests for production install
 COPY --chown=appuser:nodejs package.json pnpm-workspace.yaml pnpm-lock.yaml ./

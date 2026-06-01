@@ -2,7 +2,7 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/docs/package.json ./apps/docs/
@@ -13,10 +13,10 @@ RUN pnpm install --frozen-lockfile
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/apps/docs/node_modules ./apps/docs/node_modules 2>/dev/null || true
+COPY --from=deps /app/apps/docs/node_module[s] ./apps/docs/node_modules
 
 COPY apps/docs ./apps/docs
 
