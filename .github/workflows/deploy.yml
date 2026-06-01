@@ -83,7 +83,7 @@ jobs:
           key: ${{ secrets.DO_SSH_KEY }}
           script: |
             # 1. Navigate to the project directory
-            cd /root/supergate
+            cd ~/projects/supergate
             
             # 2. Pull the latest code (for docker-compose changes)
             git pull origin main
