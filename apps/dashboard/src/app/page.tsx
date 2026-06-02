@@ -252,6 +252,11 @@ export default function LandingPage() {
                   <Code className="w-4 h-4" /> View on GitHub
                 </button>
               </a>
+              <a href="https://www.npmjs.com/package/@supergate/sdk" target="_blank" rel="noopener noreferrer">
+                <button className="flex items-center gap-2 bg-[#1c1b1b] border border-[#4f453f]/20 text-[#e5e2e1] px-6 py-3.5 rounded-md font-semibold text-base hover:bg-[#353534] transition-all" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+                  <Box className="w-4 h-4" /> @supergate/sdk
+                </button>
+              </a>
             </div>
 
             {/* Code snippet */}

@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import Fastify, { FastifyInstance } from 'fastify'
+import cookie from '@fastify/cookie'
 import { fastifyZodOpenApiPlugin, serializerCompiler, validatorCompiler } from 'fastify-zod-openapi'
 import { registerAuthRoutes } from './auth'
 import { db } from '../db/client'
-import { users, tenants, userTenants } from '../db/schema'
+import { users, tenants, userTenants, refreshTokens } from '../db/schema'
 import { eq } from 'drizzle-orm'
 import { verifyToken } from '../lib/jwt'
 
@@ -12,12 +13,15 @@ describe('Auth Routes', () => {
 
   beforeEach(async () => {
     app = Fastify()
-    
+
+    // Register cookie plugin (required for refresh token flow)
+    await app.register(cookie)
+
     // Register Zod OpenAPI plugin
     await app.register(fastifyZodOpenApiPlugin)
     app.setValidatorCompiler(validatorCompiler)
     app.setSerializerCompiler(serializerCompiler)
-    
+
     // Register auth routes
     await app.register(registerAuthRoutes)
     await app.ready()
@@ -39,6 +43,7 @@ describe('Auth Routes', () => {
         where: eq(users.email, testEmail),
       })
       if (user) {
+        await db.delete(refreshTokens).where(eq(refreshTokens.userId, user.id))
         await db.delete(userTenants).where(eq(userTenants.userId, user.id))
         const userTenant = await db.query.userTenants.findFirst({
           where: eq(userTenants.userId, user.id),
@@ -65,7 +70,8 @@ describe('Auth Routes', () => {
       expect(response.statusCode).toBe(201)
       const body = JSON.parse(response.body)
 
-      expect(body.token).toBeTruthy()
+      // Response uses accessToken (not token)
+      expect(body.accessToken).toBeTruthy()
       expect(body.user).toBeDefined()
       expect(body.user.email).toBe(testEmail)
       expect(body.user.name).toBe(testName)
@@ -73,6 +79,49 @@ describe('Auth Routes', () => {
       expect(body.tenant.name).toBe(testTenantName)
       expect(body.tenant.tier).toBe('free')
       expect(body.tenant.role).toBe('admin')
+    })
+
+    it('should set an httpOnly refresh cookie', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/v1/auth/register',
+        payload: {
+          email: testEmail,
+          password: testPassword,
+          name: testName,
+          tenantName: testTenantName,
+        },
+      })
+
+      expect(response.statusCode).toBe(201)
+      const setCookie = response.headers['set-cookie']
+      expect(setCookie).toBeTruthy()
+      const cookieStr = Array.isArray(setCookie) ? setCookie.join('; ') : setCookie
+      expect(cookieStr).toMatch(/refresh_token=/)
+      expect(cookieStr).toMatch(/HttpOnly/i)
+      expect(cookieStr).toMatch(/Path=\/v1\/auth\/refresh/i)
+    })
+
+    it('should store hashed refresh token in database', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/v1/auth/register',
+        payload: {
+          email: testEmail,
+          password: testPassword,
+          name: testName,
+          tenantName: testTenantName,
+        },
+      })
+
+      const body = JSON.parse(response.body)
+      const stored = await db.query.refreshTokens.findFirst({
+        where: eq(refreshTokens.userId, body.user.id),
+      })
+
+      expect(stored).toBeDefined()
+      expect(stored?.tokenHash).toBeTruthy()
+      expect(stored?.revokedAt).toBeNull()
     })
 
     it('should create user in database', async () => {
@@ -142,7 +191,7 @@ describe('Auth Routes', () => {
       expect(userTenant?.role).toBe('admin')
     })
 
-    it('should return valid JWT token', async () => {
+    it('should return valid JWT access token', async () => {
       const response = await app.inject({
         method: 'POST',
         url: '/v1/auth/register',
@@ -155,7 +204,7 @@ describe('Auth Routes', () => {
       })
 
       const body = JSON.parse(response.body)
-      const payload = verifyToken(body.token)
+      const payload = verifyToken(body.accessToken)
 
       expect(payload.userId).toBe(body.user.id)
       expect(payload.tenantId).toBe(body.tenant.id)
@@ -279,6 +328,7 @@ describe('Auth Routes', () => {
 
     afterEach(async () => {
       // Cleanup
+      await db.delete(refreshTokens).where(eq(refreshTokens.userId, userId))
       await db.delete(userTenants).where(eq(userTenants.userId, userId))
       await db.delete(tenants).where(eq(tenants.id, tenantId))
       await db.delete(users).where(eq(users.id, userId))
@@ -297,12 +347,27 @@ describe('Auth Routes', () => {
       expect(response.statusCode).toBe(200)
       const body = JSON.parse(response.body)
 
-      expect(body.token).toBeTruthy()
+      expect(body.accessToken).toBeTruthy()
       expect(body.user.email).toBe(testEmail)
       expect(body.tenant).toBeDefined()
     })
 
-    it('should return valid JWT token', async () => {
+    it('should set an httpOnly refresh cookie on login', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/v1/auth/login',
+        payload: { email: testEmail, password: testPassword },
+      })
+
+      expect(response.statusCode).toBe(200)
+      const setCookie = response.headers['set-cookie']
+      expect(setCookie).toBeTruthy()
+      const cookieStr = Array.isArray(setCookie) ? setCookie.join('; ') : setCookie
+      expect(cookieStr).toMatch(/refresh_token=/)
+      expect(cookieStr).toMatch(/HttpOnly/i)
+    })
+
+    it('should return valid JWT access token', async () => {
       const response = await app.inject({
         method: 'POST',
         url: '/v1/auth/login',
@@ -313,7 +378,7 @@ describe('Auth Routes', () => {
       })
 
       const body = JSON.parse(response.body)
-      const payload = verifyToken(body.token)
+      const payload = verifyToken(body.accessToken)
 
       expect(payload.userId).toBe(userId)
       expect(payload.tenantId).toBe(tenantId)
@@ -377,6 +442,206 @@ describe('Auth Routes', () => {
     })
   })
 
+  describe('POST /v1/auth/refresh', () => {
+    const testEmail = `refresh-test-${Date.now()}@example.com`
+    const testPassword = 'password123'
+    let userId: string
+    let tenantId: string
+    let refreshCookie: string
+
+    beforeEach(async () => {
+      // Register and capture the refresh cookie
+      const response = await app.inject({
+        method: 'POST',
+        url: '/v1/auth/register',
+        payload: {
+          email: testEmail,
+          password: testPassword,
+          name: 'Refresh Test User',
+          tenantName: 'Refresh Test Company',
+        },
+      })
+
+      const body = JSON.parse(response.body)
+      userId = body.user.id
+      tenantId = body.tenant.id
+
+      // Extract the raw cookie value to send in subsequent requests
+      const setCookie = response.headers['set-cookie']
+      const cookieStr = Array.isArray(setCookie) ? setCookie[0] : setCookie ?? ''
+      const match = cookieStr.match(/refresh_token=([^;]+)/)
+      refreshCookie = match?.[1] ?? ''
+    })
+
+    afterEach(async () => {
+      await db.delete(refreshTokens).where(eq(refreshTokens.userId, userId))
+      await db.delete(userTenants).where(eq(userTenants.userId, userId))
+      await db.delete(tenants).where(eq(tenants.id, tenantId))
+      await db.delete(users).where(eq(users.id, userId))
+    })
+
+    it('should return a new access token with a valid refresh cookie', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/v1/auth/refresh',
+        cookies: { refresh_token: refreshCookie },
+      })
+
+      expect(response.statusCode).toBe(200)
+      const body = JSON.parse(response.body)
+      expect(body.accessToken).toBeTruthy()
+
+      // New token should be a valid JWT
+      const payload = verifyToken(body.accessToken)
+      expect(payload.userId).toBe(userId)
+      expect(payload.tenantId).toBe(tenantId)
+    })
+
+    it('should rotate the refresh token (old one is revoked)', async () => {
+      await app.inject({
+        method: 'POST',
+        url: '/v1/auth/refresh',
+        cookies: { refresh_token: refreshCookie },
+      })
+
+      // Try to use the original refresh cookie again — should fail
+      const secondResponse = await app.inject({
+        method: 'POST',
+        url: '/v1/auth/refresh',
+        cookies: { refresh_token: refreshCookie },
+      })
+
+      expect(secondResponse.statusCode).toBe(401)
+      const body = JSON.parse(secondResponse.body)
+      expect(body.error.code).toBe('invalid_refresh_token')
+    })
+
+    it('should set a new refresh cookie after rotation', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/v1/auth/refresh',
+        cookies: { refresh_token: refreshCookie },
+      })
+
+      expect(response.statusCode).toBe(200)
+      const setCookie = response.headers['set-cookie']
+      expect(setCookie).toBeTruthy()
+      const cookieStr = Array.isArray(setCookie) ? setCookie.join('; ') : setCookie
+      expect(cookieStr).toMatch(/refresh_token=/)
+      expect(cookieStr).toMatch(/HttpOnly/i)
+    })
+
+    it('should return 401 with no refresh cookie', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/v1/auth/refresh',
+      })
+
+      expect(response.statusCode).toBe(401)
+      const body = JSON.parse(response.body)
+      expect(body.error.code).toBe('missing_refresh_token')
+    })
+
+    it('should return 401 with an invalid refresh cookie', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/v1/auth/refresh',
+        cookies: { refresh_token: 'fake-token-value' },
+      })
+
+      expect(response.statusCode).toBe(401)
+      const body = JSON.parse(response.body)
+      expect(body.error.code).toBe('invalid_refresh_token')
+    })
+  })
+
+  describe('POST /v1/auth/logout', () => {
+    const testEmail = `logout-test-${Date.now()}@example.com`
+    const testPassword = 'password123'
+    let userId: string
+    let tenantId: string
+    let refreshCookie: string
+
+    beforeEach(async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/v1/auth/register',
+        payload: {
+          email: testEmail,
+          password: testPassword,
+          name: 'Logout Test User',
+          tenantName: 'Logout Test Company',
+        },
+      })
+
+      const body = JSON.parse(response.body)
+      userId = body.user.id
+      tenantId = body.tenant.id
+
+      const setCookie = response.headers['set-cookie']
+      const cookieStr = Array.isArray(setCookie) ? setCookie[0] : setCookie ?? ''
+      const match = cookieStr.match(/refresh_token=([^;]+)/)
+      refreshCookie = match?.[1] ?? ''
+    })
+
+    afterEach(async () => {
+      await db.delete(refreshTokens).where(eq(refreshTokens.userId, userId))
+      await db.delete(userTenants).where(eq(userTenants.userId, userId))
+      await db.delete(tenants).where(eq(tenants.id, tenantId))
+      await db.delete(users).where(eq(users.id, userId))
+    })
+
+    it('should return 204 and revoke the refresh token', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/v1/auth/logout',
+        cookies: { refresh_token: refreshCookie },
+      })
+
+      expect(response.statusCode).toBe(204)
+
+      // Refresh token should now be revoked in the DB
+      const stored = await db.query.refreshTokens.findFirst({
+        where: eq(refreshTokens.userId, userId),
+      })
+      expect(stored?.revokedAt).not.toBeNull()
+    })
+
+    it('should prevent using the refresh token after logout', async () => {
+      // Logout first
+      await app.inject({
+        method: 'POST',
+        url: '/v1/auth/logout',
+        cookies: { refresh_token: refreshCookie },
+      })
+
+      // Try to refresh — should fail
+      const refreshResponse = await app.inject({
+        method: 'POST',
+        url: '/v1/auth/refresh',
+        cookies: { refresh_token: refreshCookie },
+      })
+
+      expect(refreshResponse.statusCode).toBe(401)
+    })
+
+    it('should be idempotent — safe to call twice', async () => {
+      await app.inject({
+        method: 'POST',
+        url: '/v1/auth/logout',
+        cookies: { refresh_token: refreshCookie },
+      })
+
+      const secondResponse = await app.inject({
+        method: 'POST',
+        url: '/v1/auth/logout',
+        cookies: { refresh_token: refreshCookie },
+      })
+
+      expect(secondResponse.statusCode).toBe(204)
+    })
+  })
+
   describe('GET /v1/auth/me', () => {
     const testEmail = `me-test-${Date.now()}@example.com`
     const testPassword = 'password123'
@@ -385,7 +650,6 @@ describe('Auth Routes', () => {
     let tenantId: string
 
     beforeEach(async () => {
-      // Register and get token
       const response = await app.inject({
         method: 'POST',
         url: '/v1/auth/register',
@@ -398,13 +662,13 @@ describe('Auth Routes', () => {
       })
 
       const body = JSON.parse(response.body)
-      token = body.token
+      token = body.accessToken   // renamed field
       userId = body.user.id
       tenantId = body.tenant.id
     })
 
     afterEach(async () => {
-      // Cleanup
+      await db.delete(refreshTokens).where(eq(refreshTokens.userId, userId))
       await db.delete(userTenants).where(eq(userTenants.userId, userId))
       await db.delete(tenants).where(eq(tenants.id, tenantId))
       await db.delete(users).where(eq(users.id, userId))
@@ -521,7 +785,7 @@ describe('Auth Routes', () => {
     })
 
     afterEach(async () => {
-      // Cleanup
+      await db.delete(refreshTokens).where(eq(refreshTokens.userId, userId))
       await db.delete(userTenants).where(eq(userTenants.userId, userId))
       await db.delete(tenants).where(eq(tenants.id, tenant1Id))
       await db.delete(tenants).where(eq(tenants.id, tenant2Id))
@@ -546,14 +810,14 @@ describe('Auth Routes', () => {
         method: 'GET',
         url: '/v1/auth/me',
         headers: {
-          authorization: `Bearer ${loginBody.token}`,
+          authorization: `Bearer ${loginBody.accessToken}`,
         },
       })
 
       const meBody = JSON.parse(meResponse.body)
 
       expect(meBody.tenants).toHaveLength(2)
-      
+
       const tenant1 = meBody.tenants.find((t: any) => t.id === tenant1Id)
       const tenant2 = meBody.tenants.find((t: any) => t.id === tenant2Id)
 
@@ -574,7 +838,7 @@ describe('Auth Routes', () => {
       })
 
       const body = JSON.parse(response.body)
-      const payload = verifyToken(body.token)
+      const payload = verifyToken(body.accessToken)
 
       // Should use first tenant (admin role)
       expect(payload.tenantId).toBe(tenant1Id)

@@ -23,9 +23,9 @@ export function Navigation() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setUserMenuOpen(false)
-    logout()
+    await logout()
     router.push('/login')
   }
 

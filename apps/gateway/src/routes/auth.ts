@@ -1,37 +1,77 @@
 import { FastifyInstance } from 'fastify'
 import bcrypt from 'bcryptjs'
-import { eq } from 'drizzle-orm'
+import { eq, and, gt, isNull } from 'drizzle-orm'
 import {
   RegisterRequestSchema,
   LoginRequestSchema,
   AuthResponseSchema,
+  RefreshResponseSchema,
   MeResponseSchema,
   UpdateProfileRequestSchema,
   UpdateTenantRequestSchema,
   type RegisterRequest,
   type LoginRequest,
   type AuthResponse,
+  type RefreshResponse,
   type MeResponse,
   type UpdateProfileRequest,
   type UpdateTenantRequest,
 } from '@llm-gateway/schemas'
 import { db } from '../db/client'
-import { users, tenants, userTenants } from '../db/schema'
-import { generateToken } from '../lib/jwt'
+import { users, tenants, userTenants, refreshTokens } from '../db/schema'
+import { generateToken, generateRefreshToken, hashRefreshToken } from '../lib/jwt'
 import { dashboardAuthMiddleware } from '../middleware/dashboard-auth'
+import { env } from '../config'
+
+/** Cookie name for the httpOnly refresh token */
+const REFRESH_COOKIE = 'refresh_token'
+
+/** Cookie options shared by set / clear operations */
+const cookieOpts = (maxAge?: number) => ({
+  httpOnly: true,
+  secure: env.NODE_ENV === 'production',
+  sameSite: 'strict' as const,
+  path: '/v1/auth/refresh',
+  ...(maxAge !== undefined ? { maxAge } : {}),
+})
+
+/**
+ * Issue a refresh token: insert hashed record in DB, set httpOnly cookie.
+ */
+async function issueRefreshCookie(
+  reply: any,
+  userId: string,
+  request: any,
+): Promise<void> {
+  const rt = generateRefreshToken()
+
+  await db.insert(refreshTokens).values({
+    userId,
+    tokenHash: rt.hash,
+    expiresAt: rt.expiresAt,
+    userAgent: request.headers?.['user-agent'] ?? null,
+    ipAddress: request.ip ?? null,
+  })
+
+  reply.setCookie(REFRESH_COOKIE, rt.raw, cookieOpts(env.REFRESH_TOKEN_EXPIRES_DAYS * 86400))
+}
 
 /**
  * Register auth routes
- * 
+ *
  * Routes:
- * - POST /v1/auth/register - Create user + tenant
- * - POST /v1/auth/login - Verify credentials
- * - GET /v1/auth/me - Get current user info
+ * - POST /v1/auth/register    — Create user + tenant, return access JWT + set refresh cookie
+ * - POST /v1/auth/login       — Verify credentials, return access JWT + set refresh cookie
+ * - POST /v1/auth/refresh     — Rotate refresh token, return new access JWT
+ * - POST /v1/auth/logout      — Revoke refresh token, clear cookie
+ * - GET  /v1/auth/me          — Get current user info
+ * - PATCH /v1/auth/profile    — Update user profile
+ * - PATCH /v1/auth/tenant     — Update tenant name (admin only)
  */
 export async function registerAuthRoutes(app: FastifyInstance) {
   /**
    * POST /v1/auth/register
-   * Create a new user and tenant, return JWT token
+   * Create a new user and tenant, return access JWT + set refresh cookie.
    */
   app.post<{ Body: RegisterRequest; Reply: AuthResponse }>(
     '/v1/auth/register',
@@ -43,13 +83,12 @@ export async function registerAuthRoutes(app: FastifyInstance) {
         },
         tags: ['Auth'],
         summary: 'Register a new user',
-        description: 'Creates a new user and tenant. The user becomes the admin of the new tenant.',
+        description: 'Creates a new user and tenant. The user becomes the admin of the new tenant. Returns a short-lived access JWT; a long-lived refresh token is set as an httpOnly cookie.',
       },
     },
     async (request, reply) => {
       const { email, password, name, tenantName } = request.body
 
-      // Check if user already exists
       const existingUser = await db.query.users.findFirst({
         where: eq(users.email, email),
       })
@@ -63,31 +102,19 @@ export async function registerAuthRoutes(app: FastifyInstance) {
         } as any)
       }
 
-      // Hash password
       const passwordHash = await bcrypt.hash(password, 10)
 
-      // Create user, tenant, and user-tenant relationship in a transaction
       const result = await db.transaction(async (tx) => {
-        // Create user
         const [newUser] = await tx
           .insert(users)
-          .values({
-            email,
-            passwordHash,
-            name,
-          })
+          .values({ email, passwordHash, name })
           .returning()
 
-        // Create tenant
         const [newTenant] = await tx
           .insert(tenants)
-          .values({
-            name: tenantName,
-            tier: 'free',
-          })
+          .values({ name: tenantName, tier: 'free' })
           .returning()
 
-        // Create user-tenant relationship (admin role)
         await tx.insert(userTenants).values({
           userId: newUser.id,
           tenantId: newTenant.id,
@@ -97,12 +124,11 @@ export async function registerAuthRoutes(app: FastifyInstance) {
         return { user: newUser, tenant: newTenant }
       })
 
-      // Generate JWT token
-      const token = generateToken(result.user.id, result.tenant.id, 'admin')
+      const accessToken = generateToken(result.user.id, result.tenant.id, 'admin')
+      await issueRefreshCookie(reply, result.user.id, request)
 
-      // Return auth response
       const response: AuthResponse = {
-        token,
+        accessToken,
         user: {
           id: result.user.id,
           email: result.user.email,
@@ -124,7 +150,7 @@ export async function registerAuthRoutes(app: FastifyInstance) {
 
   /**
    * POST /v1/auth/login
-   * Verify credentials and return JWT token
+   * Verify credentials, return access JWT + set refresh cookie.
    */
   app.post<{ Body: LoginRequest; Reply: AuthResponse }>(
     '/v1/auth/login',
@@ -136,65 +162,49 @@ export async function registerAuthRoutes(app: FastifyInstance) {
         },
         tags: ['Auth'],
         summary: 'Login with email and password',
-        description: 'Verifies credentials and returns a JWT token. If the user belongs to multiple tenants, returns the first one.',
+        description: 'Verifies credentials and returns a short-lived access JWT. A long-lived refresh token is set as an httpOnly cookie on the /v1/auth/refresh path.',
       },
     },
     async (request, reply) => {
       const { email, password } = request.body
 
-      // Find user by email
       const user = await db.query.users.findFirst({
         where: eq(users.email, email),
       })
 
       if (!user) {
         return reply.status(401).send({
-          error: {
-            code: 'invalid_credentials',
-            message: 'Invalid email or password',
-          },
+          error: { code: 'invalid_credentials', message: 'Invalid email or password' },
         } as any)
       }
 
-      // Verify password
       const isValidPassword = await bcrypt.compare(password, user.passwordHash)
 
       if (!isValidPassword) {
         return reply.status(401).send({
-          error: {
-            code: 'invalid_credentials',
-            message: 'Invalid email or password',
-          },
+          error: { code: 'invalid_credentials', message: 'Invalid email or password' },
         } as any)
       }
 
-      // Get user's tenants
       const userTenantsData = await db.query.userTenants.findMany({
         where: eq(userTenants.userId, user.id),
-        with: {
-          tenant: true,
-        },
+        with: { tenant: true },
       })
 
       if (userTenantsData.length === 0) {
         return reply.status(500).send({
-          error: {
-            code: 'no_tenant_found',
-            message: 'User has no associated tenant',
-          },
+          error: { code: 'no_tenant_found', message: 'User has no associated tenant' },
         } as any)
       }
 
-      // Use the first tenant (in a real app, user might select which tenant to log into)
       const firstUserTenant = userTenantsData[0]
       const tenant = firstUserTenant.tenant
 
-      // Generate JWT token
-      const token = generateToken(user.id, tenant.id, firstUserTenant.role as any)
+      const accessToken = generateToken(user.id, tenant.id, firstUserTenant.role as any)
+      await issueRefreshCookie(reply, user.id, request)
 
-      // Return auth response
       const response: AuthResponse = {
-        token,
+        accessToken,
         user: {
           id: user.id,
           email: user.email,
@@ -215,9 +225,133 @@ export async function registerAuthRoutes(app: FastifyInstance) {
   )
 
   /**
+   * POST /v1/auth/refresh
+   *
+   * Validates the httpOnly refresh cookie, rotates it (old token revoked, new one
+   * issued), and returns a fresh short-lived access JWT.
+   *
+   * Cookie is scoped to Path=/v1/auth/refresh so browsers only send it here.
+   */
+  app.post<{ Reply: RefreshResponse }>(
+    '/v1/auth/refresh',
+    {
+      schema: {
+        tags: ['Auth'],
+        summary: 'Refresh access token',
+        description: 'Validates the httpOnly refresh cookie and returns a new short-lived access JWT. The refresh token is rotated on every call.',
+        response: {
+          200: RefreshResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const rawToken: string | undefined = (request.cookies as any)?.[REFRESH_COOKIE]
+
+      if (!rawToken) {
+        return reply.status(401).send({
+          error: { code: 'missing_refresh_token', message: 'Refresh token cookie is missing' },
+        } as any)
+      }
+
+      const tokenHash = hashRefreshToken(rawToken)
+      const now = new Date()
+
+      // Look up the token — must be valid (not revoked, not expired)
+      const stored = await db.query.refreshTokens.findFirst({
+        where: and(
+          eq(refreshTokens.tokenHash, tokenHash),
+          isNull(refreshTokens.revokedAt),
+          gt(refreshTokens.expiresAt, now),
+        ),
+      })
+
+      if (!stored) {
+        // Clear stale cookie regardless
+        reply.clearCookie(REFRESH_COOKIE, cookieOpts())
+        return reply.status(401).send({
+          error: { code: 'invalid_refresh_token', message: 'Refresh token is invalid, expired, or already used' },
+        } as any)
+      }
+
+      // Get user + tenant for fresh payload (picks up any role changes since last login)
+      const user = await db.query.users.findFirst({
+        where: eq(users.id, stored.userId),
+      })
+
+      if (!user) {
+        return reply.status(401).send({
+          error: { code: 'user_not_found', message: 'User account no longer exists' },
+        } as any)
+      }
+
+      const userTenantsData = await db.query.userTenants.findMany({
+        where: eq(userTenants.userId, user.id),
+        with: { tenant: true },
+      })
+
+      if (userTenantsData.length === 0) {
+        return reply.status(401).send({
+          error: { code: 'no_tenant_found', message: 'User has no associated tenant' },
+        } as any)
+      }
+
+      const firstUserTenant = userTenantsData[0]
+
+      // Rotate: revoke old token, issue new one (atomic-ish — both in the same request)
+      await db
+        .update(refreshTokens)
+        .set({ revokedAt: now })
+        .where(eq(refreshTokens.id, stored.id))
+
+      const accessToken = generateToken(user.id, firstUserTenant.tenantId, firstUserTenant.role as any)
+      await issueRefreshCookie(reply, user.id, request)
+
+      return reply.status(200).send({ accessToken })
+    }
+  )
+
+  /**
+   * POST /v1/auth/logout
+   *
+   * Revokes the current refresh token in the DB and clears the cookie.
+   * Idempotent — safe to call even if already logged out.
+   */
+  app.post(
+    '/v1/auth/logout',
+    {
+      schema: {
+        tags: ['Auth'],
+        summary: 'Logout',
+        description: 'Revokes the refresh token and clears the httpOnly cookie. The short-lived access JWT will expire naturally within 15 minutes.',
+      },
+    },
+    async (request, reply) => {
+      const rawToken: string | undefined = (request.cookies as any)?.[REFRESH_COOKIE]
+
+      if (rawToken) {
+        const tokenHash = hashRefreshToken(rawToken)
+        // Soft-revoke — ignore errors (token may already be expired/revoked)
+        await db
+          .update(refreshTokens)
+          .set({ revokedAt: new Date() })
+          .where(
+            and(
+              eq(refreshTokens.tokenHash, tokenHash),
+              isNull(refreshTokens.revokedAt),
+            )
+          )
+          .catch(() => {})
+      }
+
+      reply.clearCookie(REFRESH_COOKIE, cookieOpts())
+      return reply.status(204).send()
+    }
+  )
+
+  /**
    * GET /v1/auth/me
-   * Get current user info with all tenants
-   * Requires JWT authentication
+   * Get current user info with all tenants.
+   * Requires JWT authentication.
    */
   app.get<{ Reply: MeResponse }>(
     '/v1/auth/me',
@@ -236,29 +370,21 @@ export async function registerAuthRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { userId } = request.userContext!
 
-      // Get user
       const user = await db.query.users.findFirst({
         where: eq(users.id, userId),
       })
 
       if (!user) {
         return reply.status(404).send({
-          error: {
-            code: 'user_not_found',
-            message: 'User not found',
-          },
+          error: { code: 'user_not_found', message: 'User not found' },
         } as any)
       }
 
-      // Get user's tenants
       const userTenantsData = await db.query.userTenants.findMany({
         where: eq(userTenants.userId, userId),
-        with: {
-          tenant: true,
-        },
+        with: { tenant: true },
       })
 
-      // Return me response
       const response: MeResponse = {
         user: {
           id: user.id,
@@ -303,7 +429,6 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       const user = await db.query.users.findFirst({ where: eq(users.id, userId) })
       if (!user) return reply.status(404).send({ error: { code: 'user_not_found', message: 'User not found' } } as any)
 
-      // Password change — verify current password first
       if (newPassword) {
         if (!currentPassword) {
           return reply.status(400).send({ error: { code: 'current_password_required', message: 'Current password is required to set a new password' } } as any)
@@ -314,7 +439,6 @@ export async function registerAuthRoutes(app: FastifyInstance) {
         }
       }
 
-      // Check email uniqueness if changing
       if (email && email !== user.email) {
         const existing = await db.query.users.findFirst({ where: eq(users.email, email) })
         if (existing) {
@@ -323,9 +447,9 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       }
 
       const updates: Partial<typeof users.$inferInsert> = {}
-      if (name)        updates.name          = name
-      if (email)       updates.email         = email
-      if (newPassword) updates.passwordHash  = await bcrypt.hash(newPassword, 10)
+      if (name)        updates.name         = name
+      if (email)       updates.email        = email
+      if (newPassword) updates.passwordHash = await bcrypt.hash(newPassword, 10)
 
       if (Object.keys(updates).length === 0) {
         return reply.status(400).send({ error: { code: 'no_changes', message: 'No fields to update' } } as any)
@@ -355,7 +479,7 @@ export async function registerAuthRoutes(app: FastifyInstance) {
         body: UpdateTenantRequestSchema,
         tags: ['Auth'],
         summary: 'Update tenant name',
-        description: 'Update the name of the authenticated user\'s primary tenant. Admin role required.',
+        description: "Update the name of the authenticated user's primary tenant. Admin role required.",
         security: [{ BearerAuth: [] }],
       },
     },

@@ -22,6 +22,13 @@
       "when": 1776665222235,
       "tag": "0002_odd_red_wolf",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1780407419127,
+      "tag": "0003_new_slayback",
+      "breakpoints": true
     }
   ]
 }

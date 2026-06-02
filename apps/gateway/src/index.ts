@@ -1,5 +1,6 @@
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
+import cookie from '@fastify/cookie'
 import swagger from '@fastify/swagger'
 import { fastifyZodOpenApiPlugin, fastifyZodOpenApiTransform, fastifyZodOpenApiTransformObject, serializerCompiler, validatorCompiler } from 'fastify-zod-openapi'
 import { env } from './config'
@@ -50,6 +51,9 @@ async function bootstrap() {
     origin: allowedOrigins,
     credentials: true,
   })
+
+  // Register cookie plugin (needed for httpOnly refresh token cookie)
+  await app.register(cookie)
 
   // Register Zod OpenAPI plugin
   await app.register(fastifyZodOpenApiPlugin)

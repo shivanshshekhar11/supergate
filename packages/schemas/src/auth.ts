@@ -49,14 +49,25 @@ export type TenantInfo = z.infer<typeof TenantInfoSchema>
 
 /**
  * Auth response schema (login/register)
+ * Returns a short-lived access JWT in the body + sets an httpOnly refresh cookie.
  */
 export const AuthResponseSchema = z.object({
-  token: z.string(),
+  accessToken: z.string(),
   user: UserInfoSchema,
   tenant: TenantInfoSchema,
 })
 
 export type AuthResponse = z.infer<typeof AuthResponseSchema>
+
+/**
+ * Refresh response schema (POST /v1/auth/refresh)
+ * Returns a fresh short-lived access JWT. Refresh token rotated via httpOnly cookie.
+ */
+export const RefreshResponseSchema = z.object({
+  accessToken: z.string(),
+})
+
+export type RefreshResponse = z.infer<typeof RefreshResponseSchema>
 
 /**
  * Me response schema (current user info with all tenants)

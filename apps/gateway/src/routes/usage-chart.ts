@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Usage Chart Route
  *
  * GET /v1/usage/chart
@@ -15,6 +15,7 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { db } from '../db/client'
+import { requireRole } from '../middleware/auth'
 import { usageLogs } from '../db/schema'
 import { sql, and, gte, eq, SQL } from 'drizzle-orm'
 import { UsageChartResponseSchema, type UsageChartResponse } from '@llm-gateway/schemas'
@@ -31,7 +32,7 @@ export async function usageChartRoutes(app: FastifyInstance) {
   }>(
     '/v1/usage/chart',
     {
-      
+      preHandler: requireRole('admin', 'member', 'viewer', 'guest'),
       schema: {
         tags: ['Usage'],
         summary: 'Get chart data',

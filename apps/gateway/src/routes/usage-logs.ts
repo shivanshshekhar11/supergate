@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Usage Logs Routes
  * 
  * Endpoints for querying paginated usage logs with filters
@@ -7,6 +7,7 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { db } from '../db/client'
+import { requireRole } from '../middleware/auth'
 import { usageLogs } from '../db/schema'
 import { sql, and, eq, desc, gte, SQL } from 'drizzle-orm'
 import {
@@ -35,7 +36,7 @@ export async function usageLogsRoutes(app: FastifyInstance) {
   }>(
     '/v1/usage/logs',
     {
-      
+      preHandler: requireRole('admin', 'member', 'viewer', 'guest'),
       schema: {
         tags: ['Usage'],
         summary: 'Get usage logs',

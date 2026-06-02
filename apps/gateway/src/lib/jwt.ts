@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken'
+import { randomBytes, createHash } from 'crypto'
 import { env } from '../config'
 
 /**
@@ -11,33 +12,22 @@ export interface JWTPayload {
 }
 
 /**
- * Generate a JWT token for a user
- * 
- * @param userId - User UUID
- * @param tenantId - Tenant UUID
- * @param role - User's role in the tenant
- * @returns JWT token string
+ * Generate a short-lived access JWT (15 minutes).
  */
 export function generateToken(userId: string, tenantId: string, role: 'admin' | 'member' | 'guest'): string {
-  const payload: JWTPayload = {
-    userId,
-    tenantId,
-    role,
-  }
+  const payload: JWTPayload = { userId, tenantId, role }
 
   return jwt.sign(payload, env.JWT_SECRET, {
-    expiresIn: '7d', // Token expires in 7 days
+    expiresIn: '15m',
     issuer: 'llm-gateway',
     audience: 'dashboard',
   })
 }
 
 /**
- * Verify and decode a JWT token
- * 
- * @param token - JWT token string
- * @returns Decoded JWT payload
- * @throws Error if token is invalid or expired
+ * Verify and decode an access JWT.
+ *
+ * @throws Error if the token is invalid or expired
  */
 export function verifyToken(token: string): JWTPayload {
   try {
@@ -56,4 +46,44 @@ export function verifyToken(token: string): JWTPayload {
     }
     throw error
   }
+}
+
+/**
+ * Refresh token payload — opaque 48-byte random string.
+ * The raw value goes in the httpOnly cookie; the hash goes in the DB.
+ */
+export interface RefreshTokenData {
+  /** Raw token — set as httpOnly cookie, never stored in DB */
+  raw: string
+  /** SHA-256 hex hash — stored in refresh_tokens.token_hash */
+  hash: string
+  /** When the token expires */
+  expiresAt: Date
+}
+
+/**
+ * Generate a new opaque refresh token.
+ * Uses REFRESH_TOKEN_SECRET only for the hash (HMAC-like separation of secrets).
+ */
+export function generateRefreshToken(): RefreshTokenData {
+  const raw = randomBytes(48).toString('hex')
+
+  // Hash with SHA-256; prepend the secret so it can't be rainbow-tabled
+  const hash = createHash('sha256')
+    .update(env.REFRESH_TOKEN_SECRET + raw)
+    .digest('hex')
+
+  const expiresAt = new Date()
+  expiresAt.setDate(expiresAt.getDate() + env.REFRESH_TOKEN_EXPIRES_DAYS)
+
+  return { raw, hash, expiresAt }
+}
+
+/**
+ * Hash a raw refresh token for DB lookup (same algorithm as generateRefreshToken).
+ */
+export function hashRefreshToken(raw: string): string {
+  return createHash('sha256')
+    .update(env.REFRESH_TOKEN_SECRET + raw)
+    .digest('hex')
 }

@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { DashboardLayout } from '@/components/dashboard-layout'
 import { useAuth } from '@/contexts/auth-context'
@@ -580,11 +580,19 @@ export default function ApiKeysPage() {
       )}
 
       {/* Info footer */}
-      <div className="mt-8 flex items-start gap-3 bg-[#0e0e0e] rounded-lg p-4">
-        <KeyRound className="w-4 h-4 text-[#e5e2e1]/30 mt-0.5 shrink-0" />
-        <p className="text-xs text-[#e5e2e1]/40 leading-relaxed" style={{ fontFamily: 'Manrope, sans-serif' }}>
-          Gateway API keys authenticate programmatic access to the Supergate API. Keys are hashed with bcrypt before storage — the raw value is shown exactly once at creation time. Revoked keys are rejected immediately on the next request.
-        </p>
+      <div className="mt-8 flex flex-col gap-3">
+        <div className="flex items-start gap-3 bg-[#0e0e0e] rounded-lg p-4">
+          <KeyRound className="w-4 h-4 text-[#e5e2e1]/30 mt-0.5 shrink-0" />
+          <p className="text-xs text-[#e5e2e1]/40 leading-relaxed" style={{ fontFamily: 'Manrope, sans-serif' }}>
+            Gateway API keys authenticate programmatic access to the Supergate API. Keys are hashed with bcrypt before storage — the raw value is shown exactly once at creation time. Revoked keys are rejected immediately on the next request.
+          </p>
+        </div>
+        <div className="flex items-start gap-3 bg-[#0e0e0e] rounded-lg p-4 border border-[#ffba38]/20">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-[#ffba38] mt-0.5 shrink-0"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path><path d="m3.3 7 8.7 5 8.7-5"></path><path d="M12 22V12"></path></svg>
+          <p className="text-xs text-[#e5e2e1]/70 leading-relaxed" style={{ fontFamily: 'Manrope, sans-serif' }}>
+            <strong>Pro Tip:</strong> Use the official <a href="https://www.npmjs.com/package/@supergate/sdk" target="_blank" rel="noopener noreferrer" className="text-[#ffba38] hover:underline">@supergate/sdk</a> for fully typed API access, including chat completions, usage tracking, and key management.
+          </p>
+        </div>
       </div>
     </DashboardLayout>
   )

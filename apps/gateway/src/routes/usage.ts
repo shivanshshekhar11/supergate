@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Usage Routes
  * 
  * Endpoints for querying tenant usage data:
@@ -12,6 +12,7 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { db } from '../db/client'
+import { requireRole } from '../middleware/auth'
 import { usageLogs } from '../db/schema'
 import { sql, and, gte, eq, desc } from 'drizzle-orm'
 import {
@@ -42,7 +43,7 @@ export async function usageRoutes(app: FastifyInstance) {
   }>(
     '/v1/usage',
     {
-      
+      preHandler: requireRole('admin', 'member', 'viewer', 'guest'),
       schema: {
         tags: ['Usage'],
         summary: 'Get usage summary',
@@ -153,7 +154,7 @@ export async function usageRoutes(app: FastifyInstance) {
   }>(
     '/v1/usage/breakdown',
     {
-      
+      preHandler: requireRole('admin', 'member', 'viewer', 'guest'),
       schema: {
         tags: ['Usage'],
         summary: 'Get usage breakdown',

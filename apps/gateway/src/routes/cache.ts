@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Cache Analytics Routes
  *
  * GET /v1/cache/stats â€” tenant-scoped cache performance metrics.
@@ -11,6 +11,7 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { db } from '../db/client'
+import { requireRole } from '../middleware/auth'
 import { cacheEntries, usageLogs } from '../db/schema'
 import { sql, and, gte, eq, desc } from 'drizzle-orm'
 
@@ -37,7 +38,7 @@ export async function cacheRoutes(app: FastifyInstance) {
   app.get<{ Reply: z.infer<typeof CacheStatsResponseSchema> }>(
     '/v1/cache/stats',
     {
-      
+      preHandler: requireRole('admin', 'member', 'viewer', 'guest'),
       schema: {
         tags: ['Cache'],
         summary: 'Get cache statistics',

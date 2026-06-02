@@ -279,7 +279,7 @@ describe('Tenant BYOK Key Management Routes', () => {
       expect(body.keys[0].iv).toBeUndefined()
     })
 
-    it('should work with user role', async () => {
+    it('should reject request with user role', async () => {
       const response = await app.inject({
         method: 'GET',
         url: '/v1/tenant/keys',
@@ -288,7 +288,7 @@ describe('Tenant BYOK Key Management Routes', () => {
         },
       })
 
-      expect(response.statusCode).toBe(200)
+      expect(response.statusCode).toBe(403)
     })
 
     it('should only show keys for authenticated tenant', async () => {

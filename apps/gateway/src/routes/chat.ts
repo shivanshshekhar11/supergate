@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify'
 import { ChatRequestSchema, ChatResponseSchema, ErrorResponseSchema, type ChatRequest, type ChatResponse, type ErrorResponse } from '@llm-gateway/schemas'
 import { getProviderForRequest } from '../providers/router'
 import { randomUUID } from 'crypto'
+import { requireRole } from '../middleware/auth'
 
 /**
  * Chat completion route
@@ -16,6 +17,7 @@ export async function chatRoutes(app: FastifyInstance) {
   app.post<{ Body: ChatRequest; Reply: ChatResponse | ErrorResponse }>(
     '/v1/chat/completions',
     {
+      preHandler: requireRole('admin', 'user', 'member'),
       schema: {
         body: ChatRequestSchema,
         response: {

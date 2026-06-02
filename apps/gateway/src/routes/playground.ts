@@ -11,6 +11,7 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { getProviderForRequest, getProviderName } from '../providers/router'
+import { requireRole } from '../middleware/auth'
 import { getTenantTier, listTenantLLMKeys } from '../lib/tenant-keys'
 import { randomUUID } from 'crypto'
 
@@ -26,7 +27,7 @@ export async function playgroundRoutes(app: FastifyInstance) {
   app.post(
     '/v1/playground/chat',
     {
-      
+      preHandler: requireRole('admin', 'member', 'guest'),
       schema: {
         tags: ['Playground'],
         summary: 'Playground chat',
@@ -111,7 +112,7 @@ export async function playgroundRoutes(app: FastifyInstance) {
   app.get(
     '/v1/playground/models',
     {
-      
+      preHandler: requireRole('admin', 'member', 'guest'),
       schema: {
         tags: ['Playground'],
         summary: 'List available models',

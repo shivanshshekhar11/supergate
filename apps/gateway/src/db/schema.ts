@@ -149,10 +149,35 @@ export const userTenants = pgTable(
 )
 
 /**
+ * Refresh Tokens table
+ * Stores hashed opaque refresh tokens for the two-token auth flow.
+ * The raw token is delivered via httpOnly cookie and NEVER stored here.
+ * SHA-256 hash only. Soft-revoked via revokedAt rather than hard-deleted
+ * so we can detect token-reuse attacks.
+ */
+export const refreshTokens = pgTable(
+  'refresh_tokens',
+  {
+    id:          uuid('id').primaryKey().defaultRandom(),
+    userId:      uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    tokenHash:   text('token_hash').notNull().unique(),  // SHA-256 of the raw opaque token
+    expiresAt:   timestamp('expires_at').notNull(),
+    revokedAt:   timestamp('revoked_at'),                // null = still valid
+    userAgent:   text('user_agent'),
+    ipAddress:   text('ip_address'),
+    createdAt:   timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    userActiveIdx: index('refresh_tokens_user_active_idx').on(table.userId, table.revokedAt),
+  })
+)
+
+/**
  * Relations for Drizzle ORM queries
  */
 export const usersRelations = relations(users, ({ many }) => ({
   userTenants: many(userTenants),
+  refreshTokens: many(refreshTokens),
 }))
 
 export const tenantsRelations = relations(tenants, ({ many }) => ({
@@ -171,5 +196,12 @@ export const userTenantsRelations = relations(userTenants, ({ one }) => ({
   tenant: one(tenants, {
     fields: [userTenants.tenantId],
     references: [tenants.id],
+  }),
+}))
+
+export const refreshTokensRelations = relations(refreshTokens, ({ one }) => ({
+  user: one(users, {
+    fields: [refreshTokens.userId],
+    references: [users.id],
   }),
 }))

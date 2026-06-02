@@ -49,8 +49,15 @@ export const env = createEnv({
     // Encryption (for tenant BYOK keys)
     ENCRYPTION_MASTER_KEY: z.string().min(32),
 
-    // JWT Secret (for dashboard authentication)
+    // JWT Secret (for dashboard access tokens — short-lived)
     JWT_SECRET: z.string().min(32),
+
+    // Refresh Token Secret (for long-lived httpOnly refresh cookies)
+    // Generate: openssl rand -base64 32
+    REFRESH_TOKEN_SECRET: z.string().min(32),
+
+    // How long refresh tokens last in days (default: 30)
+    REFRESH_TOKEN_EXPIRES_DAYS: z.coerce.number().int().positive().default(30),
 
     // CORS — comma-separated list of allowed origins (leave unset to allow all)
     CORS_ORIGINS: z.string().optional(),

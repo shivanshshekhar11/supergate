@@ -1,4 +1,4 @@
-﻿import { FastifyInstance } from 'fastify'
+import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import {
   StoreTenantKeyRequestSchema,
@@ -134,7 +134,7 @@ export async function tenantKeyRoutes(app: FastifyInstance) {
   app.get<{ Reply: { keys: TenantKeyMetadata[] } | ErrorResponse }>(
     '/v1/tenant/keys',
     {
-      preHandler: requireRole('admin', 'member', 'user', 'viewer'),
+      preHandler: requireRole('admin', 'member'),
       schema: {
         response: {
           401: ErrorResponseSchema,
