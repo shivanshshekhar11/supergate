@@ -23,6 +23,7 @@ import {
   Layers,
   Box,
 } from 'lucide-react'
+import { useAuth } from '@/contexts/auth-context'
 
 // ── Tier data ──────────────────────────────────────────────────────────────
 const TIERS = [
@@ -172,6 +173,8 @@ const FEATURES = [
 ]
 
 export default function LandingPage() {
+  const { isAuthenticated } = useAuth()
+
   return (
     <div className="min-h-screen bg-[#131313]">
       {/* Navigation */}
@@ -189,17 +192,27 @@ export default function LandingPage() {
             <a href="#features" className="text-[#e5e2e1]/60 hover:text-[#e5e2e1] transition-colors">Features</a>
             <a href="#providers" className="text-[#e5e2e1]/60 hover:text-[#e5e2e1] transition-colors">Models</a>
             <a href="#pricing" className="text-[#e5e2e1]/60 hover:text-[#e5e2e1] transition-colors">Pricing</a>
-            <Link href="/docs" className="text-[#e5e2e1]/60 hover:text-[#e5e2e1] transition-colors">Docs</Link>
+            <a href={process.env.NEXT_PUBLIC_DOCS_URL || "http://localhost:3002"} target="_blank" rel="noopener noreferrer" className="text-[#e5e2e1]/60 hover:text-[#e5e2e1] transition-colors">Docs</a>
           </div>
           <div className="flex items-center gap-4">
-            <Link href="/login" className="text-sm text-[#e5e2e1]/60 hover:text-[#e5e2e1] transition-colors" style={{ fontFamily: 'Manrope, sans-serif' }}>
-              Sign in
-            </Link>
-            <Link href="/register">
-              <button className="bg-gradient-to-br from-[#ffba38] to-[#c78b00] text-[#281900] px-4 py-2 rounded-md font-semibold text-sm hover:shadow-[0_0_20px_rgba(255,186,56,0.3)] transition-all" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
-                Get started
-              </button>
-            </Link>
+            {isAuthenticated ? (
+              <Link href="/dashboard">
+                <button className="bg-gradient-to-br from-[#ffba38] to-[#c78b00] text-[#281900] px-4 py-2 rounded-md font-semibold text-sm hover:shadow-[0_0_20px_rgba(255,186,56,0.3)] transition-all" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+                  Go to Dashboard
+                </button>
+              </Link>
+            ) : (
+              <>
+                <Link href="/login" className="text-sm text-[#e5e2e1]/60 hover:text-[#e5e2e1] transition-colors" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                  Sign in
+                </Link>
+                <Link href="/register">
+                  <button className="bg-gradient-to-br from-[#ffba38] to-[#c78b00] text-[#281900] px-4 py-2 rounded-md font-semibold text-sm hover:shadow-[0_0_20px_rgba(255,186,56,0.3)] transition-all" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+                    Get started
+                  </button>
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </nav>
@@ -586,9 +599,9 @@ export default function LandingPage() {
                   Open source, MIT licensed, and ready to run in your own infrastructure in under five minutes.
                 </p>
                 <div className="flex flex-wrap justify-center gap-4">
-                  <Link href="/register">
+                  <Link href={isAuthenticated ? "/dashboard" : "/register"}>
                     <button className="flex items-center gap-2 bg-gradient-to-br from-[#ffba38] to-[#c78b00] text-[#281900] px-8 py-4 rounded-md font-bold text-base hover:shadow-[0_0_30px_rgba(255,186,56,0.3)] transition-all" style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
-                      Get started free <ArrowRight className="w-4 h-4" />
+                      {isAuthenticated ? "Go to Dashboard" : "Get started free"} <ArrowRight className="w-4 h-4" />
                     </button>
                   </Link>
                   <a href="https://github.com/shivanshshekhar11/supergate" target="_blank" rel="noopener noreferrer">
@@ -622,13 +635,13 @@ export default function LandingPage() {
           </div>
           <div className="flex flex-col gap-2.5">
             <h4 className="text-xs font-bold text-[#e5e2e1]/50 uppercase tracking-[0.12em] mb-1">Product</h4>
-            <Link href="/register" className="text-sm text-[#e5e2e1]/40 hover:text-[#ffba38] transition-colors">Get Started</Link>
+            <Link href={isAuthenticated ? "/dashboard" : "/register"} className="text-sm text-[#e5e2e1]/40 hover:text-[#ffba38] transition-colors">{isAuthenticated ? "Go to Dashboard" : "Get Started"}</Link>
             <a href="#features" className="text-sm text-[#e5e2e1]/40 hover:text-[#ffba38] transition-colors">Features</a>
             <a href="#pricing" className="text-sm text-[#e5e2e1]/40 hover:text-[#ffba38] transition-colors">Pricing</a>
           </div>
           <div className="flex flex-col gap-2.5">
             <h4 className="text-xs font-bold text-[#e5e2e1]/50 uppercase tracking-[0.12em] mb-1">Resources</h4>
-            <Link href="/docs" className="text-sm text-[#e5e2e1]/40 hover:text-[#ffba38] transition-colors">Documentation</Link>
+            <a href={process.env.NEXT_PUBLIC_DOCS_URL || "http://localhost:3002"} target="_blank" rel="noopener noreferrer" className="text-sm text-[#e5e2e1]/40 hover:text-[#ffba38] transition-colors">Documentation</a>
             <a href="https://github.com/shivanshshekhar11/supergate" target="_blank" rel="noopener noreferrer" className="text-sm text-[#e5e2e1]/40 hover:text-[#ffba38] transition-colors">GitHub</a>
             <a href="#providers" className="text-sm text-[#e5e2e1]/40 hover:text-[#ffba38] transition-colors">Supported Models</a>
           </div>
