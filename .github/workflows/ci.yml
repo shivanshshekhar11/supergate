@@ -99,6 +99,7 @@ jobs:
           LOG_LEVEL=error
           ENCRYPTION_MASTER_KEY=test-encryption-key-32-chars-long-minimum
           JWT_SECRET=test-jwt-secret-key-at-least-32-characters-long-for-testing
+          REFRESH_TOKEN_SECRET=test-refresh-token-secret-key-at-least-32-characters-long-for-testing
           EOF
 
       - name: Run migrations
